@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dragon Services | Tickets</title>
+  <meta name="description" content="Premium Discord ticket bot — Support Tickets & Trade Tickets, clean panels, fast setup, logs, /help and /close." />
+
+  <!-- CHANGE ONLY THIS IF YOU WANT -->
+  <meta name="bot-client-id" content="1442592762108186675" />
+  <meta name="bot-icon" content="assets/dragon.png" />
+
+  <!-- OpenGraph (Discord preview) -->
+  <meta property="og:title" content="Dragon Services | Tickets" />
+  <meta property="og:description" content="Premium Discord ticket bot — clean panels, fast setup, logs." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="assets/dragon.png" />
+
+  <!-- Favicon (IMPORTANT) -->
+  <link rel="icon" href="assets/dragon.png" type="image/png">
+  <link rel="apple-touch-icon" href="assets/dragon.png">
+
+  <!-- Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg:#070A12;
+      --bg2:#050815;
+      --card:rgba(255,255,255,.06);
+      --card2:rgba(255,255,255,.08);
+      --border:rgba(255,255,255,.10);
+      --text:#EAF0FF;
+      --muted:rgba(234,240,255,.70);
+      --blue:#2f6bff;
+      --cyan:#35d5ff;
+      --glow: rgba(47,107,255,.45);
+      --shadow: 0 22px 60px rgba(0,0,0,.55);
+      --radius: 18px;
+      --radius2: 26px;
+      --font: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--font);
+      color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 10% 10%, rgba(47,107,255,.18), transparent 55%),
+        radial-gradient(900px 700px at 90% 30%, rgba(53,213,255,.10), transparent 55%),
+        linear-gradient(180deg, var(--bg), var(--bg2));
+      overflow-x:hidden;
+    }
+
+    /* subtle grain */
+    body:before{
+      content:"";
+      position:fixed; inset:0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='.08'/%3E%3C/svg%3E");
+      pointer-events:none;
+      z-index:-1;
+      opacity:.35;
+      mix-blend-mode: overlay;
+    }
+
+    .bg-glow{
+      position:fixed; inset:-220px;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(47,107,255,.22), transparent 40%),
+        radial-gradient(circle at 80% 35%, rgba(53,213,255,.14), transparent 42%),
+        radial-gradient(circle at 40% 85%, rgba(47,107,255,.12), transparent 45%);
+      filter: blur(30px);
+      pointer-events:none;
+      z-index:-2;
+      opacity:.92;
+      transition: opacity .25s ease;
+    }
+
+    .topbar{
+      position:sticky; top:0; z-index:80;
+      display:flex; gap:14px;
+      align-items:center; justify-content:center;
+      padding:10px 14px;
+      background: linear-gradient(90deg, rgba(47,107,255,.92), rgba(53,213,255,.55));
+      color:#061022;
+      font-weight:900;
+      letter-spacing:.2px;
+      font-size:13px;
+    }
+    .topbar a{ color:#061022; text-decoration:none; font-weight:900; opacity:.95; }
+    .topbar a:hover{ opacity:1; text-decoration:underline; }
+
+    .container{max-width:1120px; margin:0 auto; padding:0 20px}
+
+    .nav{
+      position:sticky; top:40px; z-index:70;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 18px;
+      backdrop-filter: blur(14px);
+      background: rgba(6,8,16,.55);
+      border-bottom: 1px solid var(--border);
+      border-radius: 0 0 18px 18px;
+    }
+
+    .nav-left{display:flex; gap:12px; align-items:center}
+    .logo{
+      width:46px; height:46px; border-radius:16px;
+      box-shadow: 0 0 30px rgba(47,107,255,.22);
+      border:1px solid rgba(255,255,255,.12);
+      object-fit:cover;
+      background: rgba(255,255,255,.04);
+    }
+    .brand{font-weight:900; letter-spacing:.2px; line-height:1.1}
+    .subbrand{font-size:12px; color:var(--muted); margin-top:2px}
+
+    .nav-right{display:flex; gap:16px; align-items:center}
+    .nav-right a{
+      color:var(--muted);
+      text-decoration:none;
+      font-weight:800;
+      font-size:13px;
+      padding:10px 10px;
+      border-radius:12px;
+      transition: background .18s ease, color .18s ease, transform .18s ease;
+    }
+    .nav-right a:hover{
+      color:var(--text);
+      background: rgba(255,255,255,.05);
+      transform: translateY(-1px);
+    }
+
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center;
+      gap:10px;
+      padding:12px 14px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      color:var(--text);
+      background: rgba(255,255,255,.04);
+      text-decoration:none;
+      font-weight:900;
+      cursor:pointer;
+      transition: transform .15s ease, background .15s ease, border-color .15s ease, filter .15s ease;
+    }
+    .btn:hover{transform: translateY(-1px); background: rgba(255,255,255,.06)}
+    .btn.primary{
+      background: linear-gradient(90deg, rgba(47,107,255,.95), rgba(53,213,255,.55));
+      border-color: rgba(53,213,255,.35);
+      box-shadow: 0 22px 55px rgba(47,107,255,.18);
+    }
+    .btn.primary:hover{filter: brightness(1.03)}
+    .btn.ghost{ background: rgba(255,255,255,.03); }
+    .iconbtn{
+      width:44px; height:44px;
+      padding:0;
+      border-radius:16px;
+      display:grid; place-items:center;
+    }
+
+    .hero{
+      padding:56px 0 18px;
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap:26px;
+      align-items:start;
+    }
+    @media (max-width: 900px){
+      .nav{ top:0; border-radius:0; }
+      .topbar{ position:relative; }
+      .hero{grid-template-columns:1fr; padding-top:32px}
+      .nav-right{ display:none; }
+    }
+
+    .pill{
+      display:inline-flex; align-items:center; gap:10px;
+      padding:10px 12px;
+      border-radius:999px;
+      background: rgba(255,255,255,.04);
+      border:1px solid var(--border);
+      color: var(--muted);
+      font-weight:900;
+      font-size:13px;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:50%;
+      background: #2cff7b;
+      box-shadow: 0 0 18px rgba(44,255,123,.35);
+    }
+
+    h1{
+      margin:16px 0 12px;
+      font-size:52px;
+      line-height:1.03;
+      letter-spacing:-.9px;
+    }
+    @media (max-width: 520px){
+      h1{font-size:40px}
+    }
+    .grad{
+      background: linear-gradient(90deg, var(--blue), var(--cyan));
+      -webkit-background-clip:text;
+      background-clip:text;
+      color:transparent;
+    }
+
+    .lead{
+      margin:0 0 18px;
+      color: var(--muted);
+      font-size:16px;
+      line-height:1.7;
+      max-width: 60ch;
+    }
+
+    .cta{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px}
+
+    .mini-stats{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap:10px;
+    }
+    @media (max-width: 520px){
+      .mini-stats{grid-template-columns:1fr}
+    }
+    .stat{
+      padding:14px;
+      border-radius: var(--radius);
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.03);
+      transition: transform .18s ease, background .18s ease;
+    }
+    .stat:hover{ transform: translateY(-2px); background: rgba(255,255,255,.05); }
+    .statTop{font-size:18px}
+    .statBig{font-weight:900; margin-top:6px}
+    .statSub{color:var(--muted); font-size:13px; margin-top:4px}
+
+    .card{
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      border-radius: var(--radius2);
+      box-shadow: var(--shadow);
+    }
+
+    .preview{padding:18px}
+    .cardTop{
+      display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:12px;
+      gap: 10px;
+    }
+    .badge{
+      font-weight:900;
+      padding:8px 10px;
+      border-radius: 999px;
+      background: rgba(47,107,255,.14);
+      border:1px solid rgba(47,107,255,.25);
+      white-space:nowrap;
+    }
+    .chips{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end}
+    .chip{
+      font-size:12px;
+      font-weight:900;
+      color: rgba(234,240,255,.90);
+      padding:7px 10px;
+      border-radius:999px;
+      background: rgba(255,255,255,.05);
+      border:1px solid var(--border);
+    }
+
+    .panel{
+      padding:16px;
+      border-radius: 22px;
+      background: rgba(0,0,0,.22);
+      border: 1px solid rgba(255,255,255,.08);
+      position:relative;
+      overflow:hidden;
+    }
+    .panel:before{
+      content:"";
+      position:absolute; inset:-1px;
+      background: radial-gradient(600px 220px at 20% 0%, rgba(47,107,255,.18), transparent 55%),
+                  radial-gradient(600px 220px at 80% 0%, rgba(53,213,255,.14), transparent 55%);
+      opacity:.9;
+      pointer-events:none;
+    }
+    .panel > *{ position:relative; }
+
+    .panelTitle{font-weight:900; font-size:16px}
+    .panelDesc{color:var(--muted); margin:8px 0 12px; line-height:1.55}
+    .panelBtns{display:grid; grid-template-columns:1fr; gap:10px}
+    .panelBtn{
+      text-align:left;
+      padding:12px 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.05);
+      border:1px solid var(--border);
+      color:var(--text);
+      font-weight:900;
+      cursor:pointer;
+      transition: transform .15s ease, background .15s ease, border-color .15s ease;
+    }
+    .panelBtn:hover{
+      transform: translateY(-1px);
+      background: rgba(255,255,255,.07);
+      border-color: rgba(53,213,255,.30);
+    }
+    .smallNote{color:var(--muted); font-size:12px; margin-top:10px}
+
+    .mini{padding:16px; margin-top:12px}
+    .miniRow{display:flex; gap:12px; align-items:flex-start; padding:10px 0}
+    .miniRow + .miniRow{border-top:1px solid rgba(255,255,255,.08)}
+    .miniIcon{
+      width:38px; height:38px; border-radius: 14px;
+      display:grid; place-items:center;
+      background: rgba(47,107,255,.14);
+      border:1px solid rgba(47,107,255,.25);
+      flex: 0 0 auto;
+    }
+    .miniTitle{font-weight:900}
+    .miniText{color:var(--muted); font-size:13px; margin-top:4px}
+
+    .section{padding:32px 0}
+    .section h2{margin:0 0 12px; font-size:28px; letter-spacing:-.4px}
+    .muted{color:var(--muted)}
+
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap:12px;
+    }
+    @media (max-width: 900px){
+      .grid{grid-template-columns: repeat(2, minmax(0,1fr))}
+    }
+    @media (max-width: 520px){
+      .grid{grid-template-columns: 1fr}
+    }
+
+    .feature{padding:16px}
+    .icon{font-size:22px}
+    .ftitle{font-weight:900; margin-top:8px}
+    .ftext{color:var(--muted); margin-top:6px; line-height:1.6}
+
+    .cmds .cmd{
+      padding:18px 16px;
+      text-align:left;
+      font-weight:900;
+      font-size:16px;
+      cursor:pointer;
+      transition: transform .15s ease, background .15s ease;
+    }
+    .cmds .cmd:hover{transform: translateY(-2px); background: rgba(255,255,255,.06)}
+
+    .faq details{padding:16px}
+    .faq summary{ cursor:pointer; font-weight:900; }
+    .faq p{color:var(--muted); margin:10px 0 0; line-height:1.7}
+
+    .steps{padding:16px; color:var(--muted); line-height:1.8}
+    .steps b{color:var(--text)}
+
+    .footer{
+      padding:20px 0 44px;
+      display:flex; justify-content:space-between; align-items:center;
+      gap:14px;
+      border-top:1px solid rgba(255,255,255,.08);
+      margin-top:10px;
+    }
+    .footLeft{display:flex; align-items:center; gap:12px}
+    .logo.sm{ width:36px; height:36px; border-radius:12px; }
+    .footRight a{color:var(--muted); text-decoration:none; font-weight:900}
+    .footRight a:hover{color:var(--text)}
+
+    /* reveal animation */
+    .reveal{opacity:0; transform: translateY(10px); transition: .55s ease;}
+    .reveal.show{opacity:1; transform: translateY(0);}
+
+    .toTop{
+      position:fixed;
+      right:18px; bottom:18px;
+      width:44px; height:44px;
+      border-radius: 16px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.05);
+      color:var(--text);
+      cursor:pointer;
+      display:none;
+      z-index:90;
+    }
+    .toTop.show{display:inline-grid; place-items:center}
+
+    .toast{
+      position:fixed;
+      left:50%; bottom:18px;
+      transform: translateX(-50%);
+      padding:12px 14px;
+      border-radius: 16px;
+      border:1px solid rgba(53,213,255,.25);
+      background: rgba(7,10,18,.85);
+      color: rgba(234,240,255,.92);
+      box-shadow: 0 18px 60px rgba(0,0,0,.55);
+      display:none;
+      font-weight:900;
+      z-index:95;
+    }
+    .toast.show{display:block}
+
+    /* nice underline for anchors */
+    .anchor{ position:relative; }
+    .anchor:after{
+      content:"";
+      position:absolute; left:10px; right:10px; bottom:6px;
+      height:2px;
+      background: linear-gradient(90deg, rgba(47,107,255,.0), rgba(53,213,255,.55), rgba(47,107,255,.0));
+      opacity:0;
+      transition: opacity .18s ease;
+    }
+    .anchor:hover:after{ opacity:1; }
+  </style>
+</head>
+
+<body id="top">
+  <div class="bg-glow"></div>
+
+  <div class="topbar">
+    <span>Dragon Services • Premium Ticket System</span>
+    <span style="opacity:.85">—</span>
+    <a href="#setup">Setup guide</a>
+  </div>
+
+  <header class="nav container">
+    <div class="nav-left">
+      <img class="logo" src="assets/dragon.png" alt="Dragon Services" />
+      <div>
+        <div class="brand">Dragon Services</div>
+        <div class="subbrand">Tickets Bot</div>
+      </div>
+    </div>
+
+    <nav class="nav-right">
+      <a class="anchor" href="#features">Features</a>
+      <a class="anchor" href="#commands">Commands</a>
+      <a class="anchor" href="#faq">FAQ</a>
+      <a class="anchor" href="#setup">Publish</a>
+      <button class="btn ghost iconbtn" id="glowBtn" type="button" title="Toggle glow">✨</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="hero-left reveal">
+        <div class="pill">
+          <span class="dot"></span>
+          Online • Fast • Clean UI
+        </div>
+
+        <h1>
+          Ticket bot <span class="grad">premium</span> for Discord
+        </h1>
+
+        <p class="lead">
+          Support Tickets + Trade Tickets, clean panels, commands (/ and ?), logs, close ticket, owner-only setup.
+          Make your server look professional.
+        </p>
+
+        <div class="cta">
+          <a class="btn primary" id="inviteBtn" href="#" target="_blank" rel="noreferrer">
+            ➕ Add to Discord
+          </a>
+          <button class="btn ghost" id="copyInvite" type="button">
+            📋 Copy invite link
+          </button>
+        </div>
+
+        <div class="mini-stats">
+          <div class="stat">
+            <div class="statTop">⚡</div>
+            <div class="statBig">Instant</div>
+            <div class="statSub">Ticket creation</div>
+          </div>
+          <div class="stat">
+            <div class="statTop">🧩</div>
+            <div class="statBig">Panels</div>
+            <div class="statSub">Buttons + menus</div>
+          </div>
+          <div class="stat">
+            <div class="statTop">🔒</div>
+            <div class="statBig">Safe</div>
+            <div class="statSub">Role checks</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-right">
+        <div class="card preview reveal">
+          <div class="cardTop">
+            <div class="badge">Ticket Panel</div>
+            <div class="chips">
+              <span class="chip">Support</span>
+              <span class="chip">Trade</span>
+              <span class="chip">Logs</span>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panelTitle">Open a ticket</div>
+            <div class="panelDesc">Choose what you need and the bot creates a private channel.</div>
+
+            <div class="panelBtns">
+              <button class="panelBtn" type="button">🎟️ Support Ticket</button>
+              <button class="panelBtn" type="button">🤝 Trade Ticket</button>
+            </div>
+
+            <div class="smallNote">
+              Tip: staff can use <b>/close</b> inside ticket channels.
+            </div>
+          </div>
+        </div>
+
+        <div class="card mini reveal">
+          <div class="miniRow">
+            <div class="miniIcon">✅</div>
+            <div>
+              <div class="miniTitle">Clean design</div>
+              <div class="miniText">Dark blue + black, modern cards & glow</div>
+            </div>
+          </div>
+          <div class="miniRow">
+            <div class="miniIcon">🧠</div>
+            <div>
+              <div class="miniTitle">Easy to use</div>
+              <div class="miniText">Public /help, owner-only setup with ?setup</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <h2 class="reveal">Features</h2>
+      <div class="grid">
+        <div class="feature card reveal">
+          <div class="icon">🎛️</div>
+          <div class="ftitle">Setup Panel</div>
+          <div class="ftext">Pick categories/roles/logs — simple and clean.</div>
+        </div>
+        <div class="feature card reveal">
+          <div class="icon">🔐</div>
+          <div class="ftitle">Permissions</div>
+          <div class="ftext">Private tickets: only user + staff can see the channel.</div>
+        </div>
+        <div class="feature card reveal">
+          <div class="icon">🧾</div>
+          <div class="ftitle">Logs</div>
+          <div class="ftext">Ticket create/close actions can be sent into one log channel.</div>
+        </div>
+        <div class="feature card reveal">
+          <div class="icon">🧰</div>
+          <div class="ftitle">Commands</div>
+          <div class="ftext">Slash commands for everyone, prefix commands where needed.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="commands" class="section">
+      <h2 class="reveal">Commands</h2>
+      <p class="muted reveal">Click a command to copy it.</p>
+
+      <div class="grid cmds">
+        <button class="cmd card reveal" data-copy="/help">/help</button>
+        <button class="cmd card reveal" data-copy="/close">/close</button>
+        <button class="cmd card reveal" data-copy="?setup">?setup (owner)</button>
+        <button class="cmd card reveal" data-copy="?help">?help (owner)</button>
+      </div>
+    </section>
+
+    <section id="faq" class="section">
+      <h2 class="reveal">FAQ</h2>
+      <div class="faq">
+        <details class="card reveal">
+          <summary>Why does it say “Finish setup” when I click the panel?</summary>
+          <p>If the server setup is not complete (categories/roles/log channel), the bot should block ticket creation and show a clear message.</p>
+        </details>
+        <details class="card reveal">
+          <summary>How long do slash commands take to appear in other servers?</summary>
+          <p>Guild-only slash commands appear fast. Global commands can take longer (sometimes up to ~1 hour). Usually it’s minutes.</p>
+        </details>
+        <details class="card reveal">
+          <summary>How do I fix favicon showing wrong / broken?</summary>
+          <p>Make sure the file name matches exactly: <b>assets/dragon.png</b> (case-sensitive on GitHub). Then refresh with a new filename like dragon-v2.png.</p>
+        </details>
+      </div>
+    </section>
+
+    <section id="setup" class="section">
+      <h2 class="reveal">Publish on GitHub Pages</h2>
+      <ol class="steps card reveal">
+        <li>In your repo, create folder <b>assets</b> and put <b>dragon.png</b> inside.</li>
+        <li>Put this <b>index.html</b> in the repo root (same level as assets).</li>
+        <li>GitHub → <b>Settings → Pages</b>.</li>
+        <li>Source: <b>Deploy from a branch</b>.</li>
+        <li>Branch: <b>main</b>, folder: <b>/ (root)</b>.</li>
+        <li>Save → GitHub gives you a <b>github.io</b> link.</li>
+      </ol>
+    </section>
+
+    <footer class="footer">
+      <div class="footLeft">
+        <img class="logo sm" src="assets/dragon.png" alt="Dragon Services" />
+        <div>
+          <div class="brand">Dragon Services</div>
+          <div class="muted">© <span id="year"></span> • Tickets Bot</div>
+        </div>
+      </div>
+
+      <div class="footRight">
+        <a href="#top">Back to top</a>
+      </div>
+    </footer>
+  </main>
+
+  <button id="toTop" class="toTop" type="button" aria-label="Back to top">⬆️</button>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // === CONFIG ===
+    const CLIENT_ID = "1442592762108186675";
+    const PERMISSIONS = "277025770560";
+    const INVITE_URL =
+      `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}` +
+      `&scope=bot%20applications.commands&permissions=${PERMISSIONS}`;
+
+    // === ELEMENTS ===
+    const inviteBtn = document.getElementById("inviteBtn");
+    const copyInvite = document.getElementById("copyInvite");
+    const toast = document.getElementById("toast");
+    const toTop = document.getElementById("toTop");
+    const year = document.getElementById("year");
+    const glowBtn = document.getElementById("glowBtn");
+
+    inviteBtn.href = INVITE_URL;
+    year.textContent = new Date().getFullYear();
+
+    // toast helper
+    let toastTimer = null;
+    function showToast(msg){
+      toast.textContent = msg;
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(()=> toast.classList.remove("show"), 1700);
+    }
+
+    // copy invite
+    copyInvite.addEventListener("click", async () => {
+      try{
+        await navigator.clipboard.writeText(INVITE_URL);
+        showToast("Copied invite link ✅");
+      }catch{
+        showToast("Copy failed ❌ (try manual)");
+      }
+    });
+
+    // copy commands
+    document.querySelectorAll("[data-copy]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const text = btn.getAttribute("data-copy");
+        try{
+          await navigator.clipboard.writeText(text);
+          showToast(`Copied: ${text}`);
+        }catch{
+          showToast("Copy failed ❌");
+        }
+      });
+    });
+
+    // scroll to top
+    window.addEventListener("scroll", () => {
+      if(window.scrollY > 500) toTop.classList.add("show");
+      else toTop.classList.remove("show");
+    });
+    toTop.addEventListener("click", () => window.scrollTo({top:0, behavior:"smooth"}));
+
+    // glow toggle
+    let glowOn = true;
+    glowBtn?.addEventListener("click", () => {
+      glowOn = !glowOn;
+      document.querySelector(".bg-glow").style.opacity = glowOn ? ".92" : ".35";
+      showToast(glowOn ? "Glow ON ✨" : "Glow OFF 🌑");
+    });
+
+    // reveal on scroll
+    const io = new IntersectionObserver((entries)=>{
+      for(const e of entries){
+        if(e.isIntersecting) e.target.classList.add("show");
+      }
+    }, {threshold: 0.12});
+    document.querySelectorAll(".reveal").forEach(el=>io.observe(el));
+  </script>
+</body>
+</html>
