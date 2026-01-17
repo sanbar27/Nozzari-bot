@@ -3,41 +3,36 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Dragon Services | Tickets</title>
-  <meta name="description" content="Premium Discord ticket bot — Support Tickets & Trade Tickets, clean panels, fast setup, logs, /help and /close." />
+  <title>Nozzarri Tickets | Discord Tickets</title>
+  <meta name="description" content="Nozzarri Tickets — ticket bot for Discord. Support & Trade tickets, clean panels, logs, and more." />
 
-  <!-- CHANGE ONLY THIS IF YOU WANT -->
-  <meta name="bot-client-id" content="1442592762108186675" />
-  <meta name="bot-icon" content="assets/dragon.png" />
-
-  <!-- OpenGraph (Discord preview) -->
-  <meta property="og:title" content="Dragon Services | Tickets" />
-  <meta property="og:description" content="Premium Discord ticket bot — clean panels, fast setup, logs." />
+  <!-- Social preview -->
+  <meta property="og:title" content="Nozzarri Tickets | Discord Tickets" />
+  <meta property="og:description" content="Ticket bot — Support & Trade tickets, setup panel, logs, clean UI." />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="assets/dragon.png" />
+  <meta property="og:image" content="assets/nozzarri.png" />
 
-  <!-- Favicon (IMPORTANT) -->
-  <link rel="icon" href="assets/dragon.png" type="image/png">
-  <link rel="apple-touch-icon" href="assets/dragon.png">
+  <link rel="icon" type="image/png" href="assets/nozzarri.png" />
 
-  <!-- Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 
   <style>
     :root{
-      --bg:#070A12;
-      --bg2:#050815;
-      --card:rgba(255,255,255,.06);
-      --card2:rgba(255,255,255,.08);
-      --border:rgba(255,255,255,.10);
-      --text:#EAF0FF;
-      --muted:rgba(234,240,255,.70);
-      --blue:#2f6bff;
-      --cyan:#35d5ff;
-      --glow: rgba(47,107,255,.45);
-      --shadow: 0 22px 60px rgba(0,0,0,.55);
+      --bg0:#030414;
+      --bg1:#07082a;
+      --card: rgba(255,255,255,.06);
+      --card2: rgba(255,255,255,.09);
+      --border: rgba(255,255,255,.10);
+      --text: #eef2ff;
+      --muted: rgba(238,242,255,.72);
+
+      --cyan: #34d6ff;
+      --blue: #5b7cff;
+      --purple: #8a5cff;
+
+      --shadow: 0 22px 70px rgba(0,0,0,.62);
       --radius: 18px;
       --radius2: 26px;
       --font: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
@@ -50,344 +45,376 @@
       font-family:var(--font);
       color:var(--text);
       background:
-        radial-gradient(1200px 700px at 10% 10%, rgba(47,107,255,.18), transparent 55%),
-        radial-gradient(900px 700px at 90% 30%, rgba(53,213,255,.10), transparent 55%),
-        linear-gradient(180deg, var(--bg), var(--bg2));
+        radial-gradient(1100px 700px at 18% 18%, rgba(91,124,255,.20), transparent 55%),
+        radial-gradient(900px 700px at 85% 25%, rgba(138,92,255,.18), transparent 55%),
+        radial-gradient(900px 700px at 60% 85%, rgba(52,214,255,.12), transparent 55%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
       overflow-x:hidden;
     }
 
-    /* subtle grain */
-    body:before{
-      content:"";
-      position:fixed; inset:0;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='.08'/%3E%3C/svg%3E");
-      pointer-events:none;
-      z-index:-1;
-      opacity:.35;
-      mix-blend-mode: overlay;
-    }
-
-    .bg-glow{
-      position:fixed; inset:-220px;
+    /* Animated BG */
+    .bg{ position:fixed; inset:0; z-index:-2; pointer-events:none; }
+    .noise{
+      position:absolute; inset:-220px;
       background:
-        radial-gradient(circle at 20% 20%, rgba(47,107,255,.22), transparent 40%),
-        radial-gradient(circle at 80% 35%, rgba(53,213,255,.14), transparent 42%),
-        radial-gradient(circle at 40% 85%, rgba(47,107,255,.12), transparent 45%);
-      filter: blur(30px);
-      pointer-events:none;
-      z-index:-2;
-      opacity:.92;
-      transition: opacity .25s ease;
+        radial-gradient(circle at 20% 20%, rgba(91,124,255,.22), transparent 46%),
+        radial-gradient(circle at 80% 35%, rgba(138,92,255,.20), transparent 48%),
+        radial-gradient(circle at 55% 85%, rgba(52,214,255,.13), transparent 50%);
+      filter: blur(46px);
+      opacity:.95;
+      animation: float 11s ease-in-out infinite;
     }
+    @keyframes float{
+      0%,100%{ transform: translate3d(0,0,0) scale(1); }
+      50%{ transform: translate3d(26px,-16px,0) scale(1.02); }
+    }
+    canvas#stars{ position:absolute; inset:0; width:100%; height:100%; opacity:.35; }
 
-    .topbar{
-      position:sticky; top:0; z-index:80;
-      display:flex; gap:14px;
-      align-items:center; justify-content:center;
-      padding:10px 14px;
-      background: linear-gradient(90deg, rgba(47,107,255,.92), rgba(53,213,255,.55));
-      color:#061022;
+    .container{max-width:1180px; margin:0 auto; padding:0 20px}
+
+    /* ---------- LOADER ---------- */
+    .loaderWrap{
+      position:fixed; inset:0; z-index:999;
+      display:grid; place-items:center;
+      background:
+        radial-gradient(1000px 800px at 20% 20%, rgba(91,124,255,.20), transparent 50%),
+        radial-gradient(1000px 800px at 80% 35%, rgba(138,92,255,.20), transparent 50%),
+        linear-gradient(180deg, #020314, #07082a);
+      transition: opacity .55s ease, transform .55s ease;
+    }
+    .loaderWrap.hide{ opacity:0; pointer-events:none; transform: scale(1.02); }
+
+    .loaderCard{
+      width:min(560px, calc(100vw - 40px));
+      border-radius: 26px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+    .loaderTop{ display:flex; align-items:center; gap:12px; }
+    .loaderLogo{
+      width:54px; height:54px; border-radius:18px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      box-shadow: 0 0 34px rgba(91,124,255,.18);
+    }
+    .loaderName{ font-weight:1000; font-size:18px; letter-spacing:.2px; }
+    .loaderSub{ color:var(--muted); font-weight:800; font-size:13px; margin-top:2px; }
+    .bar{
+      margin-top:14px;
+      height:12px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.25);
+      overflow:hidden;
+    }
+    .bar > div{
+      height:100%;
+      width:0%;
+      border-radius:999px;
+      background: linear-gradient(90deg, rgba(52,214,255,.95), rgba(91,124,255,.95), rgba(138,92,255,.95));
+      box-shadow: 0 0 24px rgba(91,124,255,.25);
+      transition: width .25s ease;
+    }
+    .loaderHint{
+      margin-top:10px;
+      color: rgba(238,242,255,.84);
       font-weight:900;
-      letter-spacing:.2px;
+      display:flex; justify-content:space-between; align-items:center;
       font-size:13px;
     }
-    .topbar a{ color:#061022; text-decoration:none; font-weight:900; opacity:.95; }
-    .topbar a:hover{ opacity:1; text-decoration:underline; }
+    .spinner{
+      width:16px; height:16px; border-radius:50%;
+      border:2px solid rgba(255,255,255,.22);
+      border-top-color: rgba(52,214,255,.92);
+      animation: spin .9s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
 
-    .container{max-width:1120px; margin:0 auto; padding:0 20px}
-
-    .nav{
-      position:sticky; top:40px; z-index:70;
+    /* Top bar */
+    .topbar{
+      position:sticky; top:0; z-index:80;
       display:flex; align-items:center; justify-content:space-between;
       padding:14px 18px;
-      backdrop-filter: blur(14px);
-      background: rgba(6,8,16,.55);
-      border-bottom: 1px solid var(--border);
-      border-radius: 0 0 18px 18px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background: rgba(3,4,20,.56);
+      backdrop-filter: blur(16px);
     }
-
-    .nav-left{display:flex; gap:12px; align-items:center}
+    .brand{
+      display:flex; gap:12px; align-items:center;
+      text-decoration:none; color:var(--text);
+      min-width: 0;
+    }
     .logo{
-      width:46px; height:46px; border-radius:16px;
-      box-shadow: 0 0 30px rgba(47,107,255,.22);
-      border:1px solid rgba(255,255,255,.12);
-      object-fit:cover;
-      background: rgba(255,255,255,.04);
+      width:42px; height:42px; border-radius:14px;
+      box-shadow: 0 0 30px rgba(91,124,255,.18);
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.06);
+      flex: 0 0 auto;
     }
-    .brand{font-weight:900; letter-spacing:.2px; line-height:1.1}
-    .subbrand{font-size:12px; color:var(--muted); margin-top:2px}
+    .bname{font-weight:900; letter-spacing:.2px}
+    .btag{font-size:12px; color:var(--muted); margin-top:2px}
 
-    .nav-right{display:flex; gap:16px; align-items:center}
-    .nav-right a{
+    .nav{ display:flex; gap:16px; align-items:center; }
+    .nav a{
       color:var(--muted);
       text-decoration:none;
       font-weight:800;
-      font-size:13px;
+      font-size:14px;
       padding:10px 10px;
       border-radius:12px;
-      transition: background .18s ease, color .18s ease, transform .18s ease;
+      transition:.18s ease;
     }
-    .nav-right a:hover{
-      color:var(--text);
-      background: rgba(255,255,255,.05);
-      transform: translateY(-1px);
-    }
+    .nav a:hover{ color:var(--text); background: rgba(255,255,255,.06); }
 
+    .actions{display:flex; gap:10px; align-items:center}
     .btn{
       display:inline-flex; align-items:center; justify-content:center;
       gap:10px;
       padding:12px 14px;
       border-radius:14px;
-      border:1px solid var(--border);
+      border:1px solid rgba(255,255,255,.10);
       color:var(--text);
-      background: rgba(255,255,255,.04);
+      background: rgba(255,255,255,.05);
       text-decoration:none;
       font-weight:900;
       cursor:pointer;
-      transition: transform .15s ease, background .15s ease, border-color .15s ease, filter .15s ease;
+      transition: transform .14s ease, background .16s ease, border-color .16s ease, filter .16s ease;
+      box-shadow: 0 18px 50px rgba(0,0,0,.25);
+      user-select:none;
+      will-change: transform;
     }
-    .btn:hover{transform: translateY(-1px); background: rgba(255,255,255,.06)}
+    .btn:hover{transform: translateY(-1px); background: rgba(255,255,255,.07)}
+    .btn:active{transform: translateY(0px)}
     .btn.primary{
-      background: linear-gradient(90deg, rgba(47,107,255,.95), rgba(53,213,255,.55));
-      border-color: rgba(53,213,255,.35);
-      box-shadow: 0 22px 55px rgba(47,107,255,.18);
+      background: linear-gradient(90deg, rgba(52,214,255,.75), rgba(91,124,255,.95), rgba(138,92,255,.75));
+      border-color: rgba(52,214,255,.25);
+      box-shadow: 0 24px 60px rgba(91,124,255,.18);
     }
-    .btn.primary:hover{filter: brightness(1.03)}
-    .btn.ghost{ background: rgba(255,255,255,.03); }
-    .iconbtn{
-      width:44px; height:44px;
-      padding:0;
-      border-radius:16px;
-      display:grid; place-items:center;
+    .btn.primary:hover{filter: brightness(1.05)}
+    .btn.ghost{background: rgba(255,255,255,.04)}
+    .iconbtn{ width:44px; height:44px; padding:0; border-radius:16px; }
+
+    .menuBtn{display:none}
+    @media (max-width: 920px){
+      .nav{display:none}
+      .menuBtn{display:inline-flex}
     }
 
-    .hero{
-      padding:56px 0 18px;
+    /* Mobile drawer */
+    .drawer{
+      position:fixed; inset:0; z-index:120;
+      background: rgba(0,0,0,.55);
+      display:none;
+    }
+    .drawer.open{display:block}
+    .drawerPanel{
+      position:absolute; right:14px; top:14px;
+      width:min(360px, calc(100vw - 28px));
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(10,12,28,.92);
+      backdrop-filter: blur(16px);
+      border-radius: 18px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+      display:grid; gap:10px;
+    }
+    .drawerPanel a{
+      text-decoration:none;
+      color:var(--muted);
+      font-weight:900;
+      padding:12px 12px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.05);
+    }
+    .drawerPanel a:hover{color:var(--text); background: rgba(255,255,255,.07)}
+    .closeX{justify-self:end}
+
+    /* ---------- GATE (Free / Premium) ---------- */
+    .gate{
+      min-height: calc(100vh - 76px);
       display:grid;
-      grid-template-columns: 1.1fr .9fr;
-      gap:26px;
-      align-items:start;
+      place-items:center;
+      padding: 34px 0 26px;
     }
-    @media (max-width: 900px){
-      .nav{ top:0; border-radius:0; }
-      .topbar{ position:relative; }
-      .hero{grid-template-columns:1fr; padding-top:32px}
-      .nav-right{ display:none; }
+    .gateCard{
+      width:min(1100px, calc(100vw - 40px));
+      border-radius: 28px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      box-shadow: var(--shadow);
+      padding: 18px;
     }
-
     .pill{
       display:inline-flex; align-items:center; gap:10px;
       padding:10px 12px;
       border-radius:999px;
-      background: rgba(255,255,255,.04);
-      border:1px solid var(--border);
+      background: rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.10);
       color: var(--muted);
-      font-weight:900;
+      font-weight:1000;
       font-size:13px;
+      width: fit-content;
     }
     .dot{
       width:10px; height:10px; border-radius:50%;
-      background: #2cff7b;
+      background:#2cff7b;
       box-shadow: 0 0 18px rgba(44,255,123,.35);
     }
-
-    h1{
-      margin:16px 0 12px;
-      font-size:52px;
-      line-height:1.03;
-      letter-spacing:-.9px;
-    }
-    @media (max-width: 520px){
-      h1{font-size:40px}
-    }
     .grad{
-      background: linear-gradient(90deg, var(--blue), var(--cyan));
+      background: linear-gradient(90deg, var(--cyan), var(--blue), var(--purple));
       -webkit-background-clip:text;
       background-clip:text;
       color:transparent;
     }
-
-    .lead{
-      margin:0 0 18px;
+    .gateHead{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:14px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .gateTitle{
+      font-size: clamp(26px, 3.2vw, 44px);
+      line-height:1.06;
+      margin: 10px 0 6px;
+      font-weight: 1000;
+      letter-spacing:-.8px;
+    }
+    .gateDesc{
       color: var(--muted);
-      font-size:16px;
-      line-height:1.7;
-      max-width: 60ch;
+      font-weight:800;
+      line-height:1.6;
+      max-width: 80ch;
+      margin:0;
     }
 
-    .cta{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px}
-
-    .mini-stats{
+    .gateGrid{
       display:grid;
-      grid-template-columns: repeat(3, minmax(0,1fr));
-      gap:10px;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
     }
-    @media (max-width: 520px){
-      .mini-stats{grid-template-columns:1fr}
+    @media (max-width: 980px){ .gateGrid{grid-template-columns:1fr} }
+
+    .pick{
+      position:relative;
+      overflow:hidden;
+      border-radius: 26px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.04);
+      padding: 16px;
+      cursor:pointer;
+      transition: transform .18s ease, background .18s ease, border-color .18s ease;
+      transform: translateZ(0);
+      will-change: transform;
+      min-width: 0;
     }
-    .stat{
-      padding:14px;
-      border-radius: var(--radius);
-      border:1px solid var(--border);
-      background: rgba(255,255,255,.03);
-      transition: transform .18s ease, background .18s ease;
+    .pick:hover{
+      transform: translateY(-2px);
+      background: rgba(255,255,255,.06);
+      border-color: rgba(52,214,255,.22);
     }
-    .stat:hover{ transform: translateY(-2px); background: rgba(255,255,255,.05); }
-    .statTop{font-size:18px}
-    .statBig{font-weight:900; margin-top:6px}
-    .statSub{color:var(--muted); font-size:13px; margin-top:4px}
+    .pickGlow{
+      position:absolute; inset:-140px;
+      background: radial-gradient(circle at 30% 30%, rgba(52,214,255,.20), transparent 52%),
+                  radial-gradient(circle at 70% 40%, rgba(91,124,255,.18), transparent 58%),
+                  radial-gradient(circle at 55% 75%, rgba(138,92,255,.16), transparent 58%);
+      filter: blur(38px);
+      opacity:.9;
+      transition: opacity .2s ease;
+      pointer-events:none;
+    }
+    .pick:hover .pickGlow{ opacity:1; }
+    .pickTop{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px;
+      position:relative;
+    }
+    .tag{
+      font-weight:1000;
+      padding:8px 10px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.18);
+      white-space:nowrap;
+    }
+    .tag.free{ border-color: rgba(52,214,255,.22); background: rgba(52,214,255,.10); }
+    .tag.prem{ border-color: rgba(138,92,255,.25); background: rgba(138,92,255,.10); }
+
+    .kbd{
+      font-size:12px; font-weight:1000;
+      color: rgba(238,242,255,.85);
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      white-space:nowrap;
+    }
+
+    .pickTitle{
+      font-weight:1000;
+      font-size: 18px;
+      margin-top: 12px;
+      position:relative;
+    }
+    .pickText{
+      color: var(--muted);
+      margin-top: 8px;
+      line-height: 1.6;
+      position:relative;
+      font-weight:800;
+    }
+    .pickBtns{
+      display:flex; gap:10px; flex-wrap:wrap;
+      margin-top: 14px;
+      position:relative;
+    }
+    .miniBtn{
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      color: var(--text);
+      font-weight:900;
+      cursor:pointer;
+      transition: transform .14s ease, background .14s ease, border-color .14s ease;
+    }
+    .miniBtn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.07); }
+    .miniBtn.primary{
+      background: linear-gradient(90deg, rgba(52,214,255,.75), rgba(91,124,255,.95), rgba(138,92,255,.75));
+      border-color: rgba(52,214,255,.22);
+    }
+
+    /* app wrappers */
+    .view{ display:none; }
+    .view.show{ display:block; animation: popIn .45s ease both; }
+    @keyframes popIn{
+      from{ opacity:0; transform: translateY(10px) scale(.99); }
+      to{ opacity:1; transform: translateY(0) scale(1); }
+    }
+
+    /* Shared sections */
+    .section{padding: 26px 0}
+    .section h2{ margin:0 0 12px; font-size:28px; letter-spacing:-.4px; }
+    .muted{color:var(--muted)}
 
     .card{
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
       border-radius: var(--radius2);
       box-shadow: var(--shadow);
     }
 
-    .preview{padding:18px}
-    .cardTop{
-      display:flex; align-items:center; justify-content:space-between;
-      margin-bottom:12px;
-      gap: 10px;
+    .reveal{
+      opacity:0;
+      transform: translateY(14px);
+      transition: opacity .6s ease, transform .6s ease;
     }
-    .badge{
-      font-weight:900;
-      padding:8px 10px;
-      border-radius: 999px;
-      background: rgba(47,107,255,.14);
-      border:1px solid rgba(47,107,255,.25);
-      white-space:nowrap;
-    }
-    .chips{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end}
-    .chip{
-      font-size:12px;
-      font-weight:900;
-      color: rgba(234,240,255,.90);
-      padding:7px 10px;
-      border-radius:999px;
-      background: rgba(255,255,255,.05);
-      border:1px solid var(--border);
-    }
-
-    .panel{
-      padding:16px;
-      border-radius: 22px;
-      background: rgba(0,0,0,.22);
-      border: 1px solid rgba(255,255,255,.08);
-      position:relative;
-      overflow:hidden;
-    }
-    .panel:before{
-      content:"";
-      position:absolute; inset:-1px;
-      background: radial-gradient(600px 220px at 20% 0%, rgba(47,107,255,.18), transparent 55%),
-                  radial-gradient(600px 220px at 80% 0%, rgba(53,213,255,.14), transparent 55%);
-      opacity:.9;
-      pointer-events:none;
-    }
-    .panel > *{ position:relative; }
-
-    .panelTitle{font-weight:900; font-size:16px}
-    .panelDesc{color:var(--muted); margin:8px 0 12px; line-height:1.55}
-    .panelBtns{display:grid; grid-template-columns:1fr; gap:10px}
-    .panelBtn{
-      text-align:left;
-      padding:12px 14px;
-      border-radius: 16px;
-      background: rgba(255,255,255,.05);
-      border:1px solid var(--border);
-      color:var(--text);
-      font-weight:900;
-      cursor:pointer;
-      transition: transform .15s ease, background .15s ease, border-color .15s ease;
-    }
-    .panelBtn:hover{
-      transform: translateY(-1px);
-      background: rgba(255,255,255,.07);
-      border-color: rgba(53,213,255,.30);
-    }
-    .smallNote{color:var(--muted); font-size:12px; margin-top:10px}
-
-    .mini{padding:16px; margin-top:12px}
-    .miniRow{display:flex; gap:12px; align-items:flex-start; padding:10px 0}
-    .miniRow + .miniRow{border-top:1px solid rgba(255,255,255,.08)}
-    .miniIcon{
-      width:38px; height:38px; border-radius: 14px;
-      display:grid; place-items:center;
-      background: rgba(47,107,255,.14);
-      border:1px solid rgba(47,107,255,.25);
-      flex: 0 0 auto;
-    }
-    .miniTitle{font-weight:900}
-    .miniText{color:var(--muted); font-size:13px; margin-top:4px}
-
-    .section{padding:32px 0}
-    .section h2{margin:0 0 12px; font-size:28px; letter-spacing:-.4px}
-    .muted{color:var(--muted)}
-
-    .grid{
-      display:grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap:12px;
-    }
-    @media (max-width: 900px){
-      .grid{grid-template-columns: repeat(2, minmax(0,1fr))}
-    }
-    @media (max-width: 520px){
-      .grid{grid-template-columns: 1fr}
-    }
-
-    .feature{padding:16px}
-    .icon{font-size:22px}
-    .ftitle{font-weight:900; margin-top:8px}
-    .ftext{color:var(--muted); margin-top:6px; line-height:1.6}
-
-    .cmds .cmd{
-      padding:18px 16px;
-      text-align:left;
-      font-weight:900;
-      font-size:16px;
-      cursor:pointer;
-      transition: transform .15s ease, background .15s ease;
-    }
-    .cmds .cmd:hover{transform: translateY(-2px); background: rgba(255,255,255,.06)}
-
-    .faq details{padding:16px}
-    .faq summary{ cursor:pointer; font-weight:900; }
-    .faq p{color:var(--muted); margin:10px 0 0; line-height:1.7}
-
-    .steps{padding:16px; color:var(--muted); line-height:1.8}
-    .steps b{color:var(--text)}
-
-    .footer{
-      padding:20px 0 44px;
-      display:flex; justify-content:space-between; align-items:center;
-      gap:14px;
-      border-top:1px solid rgba(255,255,255,.08);
-      margin-top:10px;
-    }
-    .footLeft{display:flex; align-items:center; gap:12px}
-    .logo.sm{ width:36px; height:36px; border-radius:12px; }
-    .footRight a{color:var(--muted); text-decoration:none; font-weight:900}
-    .footRight a:hover{color:var(--text)}
-
-    /* reveal animation */
-    .reveal{opacity:0; transform: translateY(10px); transition: .55s ease;}
-    .reveal.show{opacity:1; transform: translateY(0);}
-
-    .toTop{
-      position:fixed;
-      right:18px; bottom:18px;
-      width:44px; height:44px;
-      border-radius: 16px;
-      border:1px solid var(--border);
-      background: rgba(255,255,255,.05);
-      color:var(--text);
-      cursor:pointer;
-      display:none;
-      z-index:90;
-    }
-    .toTop.show{display:inline-grid; place-items:center}
+    .reveal.show{ opacity:1; transform: translateY(0px); }
 
     .toast{
       position:fixed;
@@ -395,254 +422,889 @@
       transform: translateX(-50%);
       padding:12px 14px;
       border-radius: 16px;
-      border:1px solid rgba(53,213,255,.25);
-      background: rgba(7,10,18,.85);
-      color: rgba(234,240,255,.92);
+      border:1px solid rgba(52,214,255,.22);
+      background: rgba(7,10,18,.88);
+      color: rgba(238,242,255,.92);
       box-shadow: 0 18px 60px rgba(0,0,0,.55);
       display:none;
-      font-weight:900;
-      z-index:95;
+      font-weight:1000;
+      z-index:200;
     }
     .toast.show{display:block}
 
-    /* nice underline for anchors */
-    .anchor{ position:relative; }
-    .anchor:after{
-      content:"";
-      position:absolute; left:10px; right:10px; bottom:6px;
-      height:2px;
-      background: linear-gradient(90deg, rgba(47,107,255,.0), rgba(53,213,255,.55), rgba(47,107,255,.0));
-      opacity:0;
-      transition: opacity .18s ease;
+    /* ---------- FREE VIEW ---------- */
+    .hero{
+      padding: 36px 0 18px;
+      display:grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 22px;
+      align-items:start;
     }
-    .anchor:hover:after{ opacity:1; }
+    @media (max-width: 920px){
+      .hero{grid-template-columns:1fr; padding-top:22px}
+    }
+    h1{
+      margin:16px 0 10px;
+      font-size: clamp(38px, 4.4vw, 64px);
+      line-height:1.03;
+      letter-spacing: -1px;
+    }
+    .lead{
+      margin:0 0 18px;
+      color: var(--muted);
+      font-size:16px;
+      line-height:1.65;
+      max-width: 62ch;
+      font-weight:800;
+    }
+    .cta{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px}
+
+    .stats{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap:10px;
+      margin-top: 10px;
+    }
+    @media (max-width: 520px){ .stats{grid-template-columns:1fr} }
+    .stat{
+      padding:14px;
+      border-radius: var(--radius);
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.04);
+      box-shadow: 0 18px 50px rgba(0,0,0,.18);
+    }
+    .statTop{font-size:18px}
+    .statBig{font-weight:1000; margin-top:6px}
+    .statSub{color:var(--muted); font-size:13px; margin-top:4px; font-weight:800}
+
+    .preview{padding:18px}
+    .cardTop{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:10px; }
+    .badge{
+      font-weight:1000;
+      padding:8px 10px;
+      border-radius: 999px;
+      background: rgba(91,124,255,.16);
+      border:1px solid rgba(91,124,255,.28);
+      white-space:nowrap;
+    }
+    .chips{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end}
+    .chip{
+      font-size:12px;
+      font-weight:1000;
+      color: rgba(238,242,255,.92);
+      padding:7px 10px;
+      border-radius:999px;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+    }
+    .panel{
+      padding:16px;
+      border-radius: 22px;
+      background: rgba(0,0,0,.22);
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    .panelHead{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+    .panelAvatar{
+      width:46px; height:46px; border-radius:16px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.06);
+    }
+    .panelTitle{font-weight:1000; font-size:16px}
+    .panelDesc{color:var(--muted); margin:6px 0 12px; line-height:1.55; font-weight:800}
+    .panelBtns{display:grid; grid-template-columns:1fr; gap:10px}
+
+    .panelBtn{
+      text-align:left;
+      padding:12px 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      color:var(--text);
+      font-weight:1000;
+      cursor:pointer;
+      transition: transform .15s ease, background .15s ease, border-color .15s ease;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px;
+    }
+    .panelBtn:hover{
+      transform: translateY(-1px);
+      background: rgba(255,255,255,.08);
+      border-color: rgba(52,214,255,.24);
+    }
+    .panelBtn small{color:var(--muted); font-weight:900}
+    .smallNote{color:var(--muted); font-size:12px; margin-top:10px; font-weight:800}
+
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap:12px;
+    }
+    @media (max-width: 920px){ .grid{grid-template-columns: repeat(2, minmax(0,1fr))} }
+    @media (max-width: 520px){ .grid{grid-template-columns: 1fr} }
+
+    .feature{padding:16px}
+    .icon{font-size:22px}
+    .ftitle{font-weight:1000; margin-top:8px}
+    .ftext{color:var(--muted); margin-top:6px; line-height:1.55; font-weight:800}
+
+    .cmds .cmd{
+      padding:18px 16px;
+      text-align:left;
+      font-weight:1000;
+      font-size:16px;
+      cursor:pointer;
+      transition: transform .15s ease, background .15s ease, border-color .15s ease;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px;
+    }
+    .cmds .cmd:hover{
+      transform: translateY(-2px);
+      background: rgba(255,255,255,.07);
+      border-color: rgba(91,124,255,.22);
+    }
+
+    .faq details{padding:16px}
+    .faq summary{ cursor:pointer; font-weight:1000; list-style:none; }
+    .faq summary::-webkit-details-marker{display:none}
+    .faq p{color:var(--muted); margin:10px 0 0; line-height:1.65; font-weight:800}
+
+    .footer{
+      padding:22px 0 46px;
+      display:flex; justify-content:space-between; align-items:center;
+      gap:14px;
+      border-top:1px solid rgba(255,255,255,.08);
+      margin-top:12px;
+      flex-wrap:wrap;
+    }
+    .footLeft{display:flex; align-items:center; gap:12px}
+    .footRight{display:flex; gap:14px; align-items:center; flex-wrap:wrap;}
+    .footRight a{color:var(--muted); text-decoration:none; font-weight:1000}
+    .footRight a:hover{color:var(--text)}
+
+    /* ---------- PREMIUM VIEW (FIXED PC LAYOUT) ---------- */
+    .premWrap{ padding: 28px 0 18px; }
+    .premGrid{
+      display:grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+      gap: 14px;
+      align-items:start;
+    }
+    @media (max-width: 1100px){
+      .premGrid{ grid-template-columns: 1fr; }
+    }
+    .premLeft, .premRight{ min-width: 0; }
+
+    .premHero{
+      padding: 18px;
+      border-radius: 28px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      position:relative;
+    }
+    .premHeroGlow{
+      position:absolute; inset:-160px;
+      background:
+        radial-gradient(circle at 25% 25%, rgba(52,214,255,.18), transparent 50%),
+        radial-gradient(circle at 80% 35%, rgba(91,124,255,.18), transparent 55%),
+        radial-gradient(circle at 55% 85%, rgba(138,92,255,.16), transparent 55%);
+      filter: blur(40px);
+      opacity:.9;
+      pointer-events:none;
+      animation: float 12s ease-in-out infinite;
+    }
+    .premTopPill{ position:relative; }
+    .premTitleBig{
+      position:relative;
+      margin: 10px 0 8px;
+      font-size: clamp(44px, 5vw, 78px);
+      letter-spacing:-1.3px;
+      line-height:1.02;
+      font-weight:1000;
+      word-break: break-word;
+    }
+    .premSub{
+      position:relative;
+      color: var(--muted);
+      font-weight:900;
+      line-height:1.6;
+      max-width: 75ch;
+      margin: 0 0 14px;
+    }
+    .premActions{
+      position:relative;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top: 8px;
+    }
+
+    .tabs{
+      position:relative;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top: 14px;
+    }
+    .tabBtn{
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      color: var(--text);
+      font-weight:1000;
+      cursor:pointer;
+      transition: transform .14s ease, background .14s ease;
+    }
+    .tabBtn:hover{ transform: translateY(-1px); background: rgba(255,255,255,.07); }
+    .tabBtn.active{
+      background: linear-gradient(90deg, rgba(52,214,255,.55), rgba(91,124,255,.70), rgba(138,92,255,.55));
+      border-color: rgba(52,214,255,.22);
+    }
+
+    .premPanel{
+      margin-top: 12px;
+      padding: 16px;
+      border-radius: 26px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.04);
+      position:relative;
+      overflow:hidden;
+    }
+
+    .cmdList{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    @media (max-width: 820px){ .cmdList{ grid-template-columns: 1fr; } }
+
+    .cmdCard{
+      border-radius: 18px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.20);
+      padding: 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      min-width: 0;
+    }
+    .cmdName{
+      font-weight:1000;
+      letter-spacing:.2px;
+      word-break: break-word;
+    }
+    .cmdHint{
+      color: var(--muted);
+      font-weight:900;
+      font-size:12px;
+      margin-top: 3px;
+    }
+    .cmdCopy{
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      font-weight:1000;
+      padding: 10px 12px;
+      cursor:pointer;
+      transition: transform .14s ease, background .14s ease;
+      flex: 0 0 auto;
+    }
+    .cmdCopy:hover{ transform: translateY(-1px); background: rgba(255,255,255,.08); }
+
+    .premRightCard{
+      padding: 16px;
+      border-radius: 28px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      position:relative;
+      min-width: 0;
+    }
+    .premRightCard h3{
+      margin: 0 0 10px;
+      font-size: 18px;
+      font-weight:1000;
+      letter-spacing:-.2px;
+      position:relative;
+    }
+
+    .priceGrid{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; margin-top: 12px; }
+    @media (max-width: 1100px){ .priceGrid{grid-template-columns: 1fr; } }
+
+    .priceCard{
+      border-radius: 22px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      padding: 14px;
+      position:relative;
+      overflow:hidden;
+      transition: transform .16s ease, background .16s ease, border-color .16s ease;
+      min-width: 0;
+    }
+    .priceCard:hover{
+      transform: translateY(-2px);
+      background: rgba(0,0,0,.22);
+      border-color: rgba(52,214,255,.22);
+    }
+    .priceTop{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .priceBadge{
+      font-weight:1000;
+      padding:7px 10px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      font-size:12px;
+    }
+    .priceBadge.best{
+      border-color: rgba(52,214,255,.28);
+      background: rgba(52,214,255,.12);
+    }
+    .priceName{ font-weight:1000; margin-top:10px; }
+    .priceMoney{ font-weight:1000; font-size:28px; margin-top:6px; letter-spacing:-.6px; }
+    .priceSub{ color:var(--muted); font-weight:900; margin-top:6px; line-height:1.55; }
+    .priceBtnRow{ margin-top: 12px; display:flex; gap:10px; flex-wrap:wrap; }
+
+    .finePrint{
+      margin-top: 12px;
+      color: rgba(238,242,255,.72);
+      font-weight:900;
+      font-size:12px;
+      line-height:1.55;
+    }
+
+    /* Modal (dark, not white) */
+    .modal{
+      position:fixed; inset:0; z-index:300;
+      display:none;
+      background: rgba(0,0,0,.66);
+      place-items:center;
+      padding: 18px;
+    }
+    .modal.show{display:grid}
+    .modalCard{
+      width:min(640px, calc(100vw - 36px));
+      border-radius: 26px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(10,12,28,.94);
+      backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      overflow:hidden;
+      position:relative;
+    }
+    .modalGlow{
+      position:absolute; inset:-180px;
+      background:
+        radial-gradient(circle at 25% 25%, rgba(52,214,255,.18), transparent 52%),
+        radial-gradient(circle at 80% 35%, rgba(91,124,255,.18), transparent 58%),
+        radial-gradient(circle at 55% 85%, rgba(138,92,255,.16), transparent 58%);
+      filter: blur(44px);
+      opacity:.85;
+      pointer-events:none;
+    }
+    .modalTop{
+      position:relative;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      margin-bottom: 8px;
+    }
+    .modalTitle{ font-weight:1000; font-size:18px; }
+    .modalText{ position:relative; color:var(--muted); line-height:1.65; font-weight:900; margin: 8px 0 12px; }
+
+    .fieldRow{ position:relative; display:grid; gap:10px; margin-top: 10px; }
+    .label{ font-weight:1000; font-size:12px; color: rgba(238,242,255,.86); }
+    .input{
+      width:100%;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.30);
+      color: var(--text);
+      padding: 12px 12px;
+      outline:none;
+      font-weight:900;
+    }
+    .input::placeholder{ color: rgba(238,242,255,.45); font-weight:800; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+    .rowBtns{ position:relative; display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px; }
+
+    .divider{
+      height:1px;
+      background: rgba(255,255,255,.08);
+      margin: 12px 0;
+      position:relative;
+    }
+
+    .toTop{
+      position:fixed;
+      right:18px; bottom:18px;
+      width:46px; height:46px;
+      border-radius: 16px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.06);
+      color:var(--text);
+      cursor:pointer;
+      display:none;
+      box-shadow: 0 18px 60px rgba(0,0,0,.35);
+      z-index:140;
+    }
+    .toTop.show{display:inline-grid; place-items:center}
   </style>
 </head>
 
 <body id="top">
-  <div class="bg-glow"></div>
-
-  <div class="topbar">
-    <span>Dragon Services • Premium Ticket System</span>
-    <span style="opacity:.85">—</span>
-    <a href="#setup">Setup guide</a>
+  <div class="bg">
+    <div class="noise"></div>
+    <canvas id="stars"></canvas>
   </div>
 
-  <header class="nav container">
-    <div class="nav-left">
-      <img class="logo" src="assets/dragon.png" alt="Dragon Services" />
-      <div>
-        <div class="brand">Dragon Services</div>
-        <div class="subbrand">Tickets Bot</div>
+  <!-- LOADER -->
+  <div class="loaderWrap" id="loader" aria-label="Loading">
+    <div class="loaderCard">
+      <div class="loaderTop">
+        <img class="loaderLogo" src="assets/nozzarri.png" alt="Nozzarri Tickets" />
+        <div>
+          <div class="loaderName">Nozzarri Tickets</div>
+          <div class="loaderSub">Loading the panel…</div>
+        </div>
+        <div style="margin-left:auto" class="spinner" aria-hidden="true"></div>
+      </div>
+      <div class="bar"><div id="barFill"></div></div>
+      <div class="loaderHint">
+        <span id="loadText">Booting UI</span>
+        <span id="loadPct">0%</span>
       </div>
     </div>
+  </div>
 
-    <nav class="nav-right">
-      <a class="anchor" href="#features">Features</a>
-      <a class="anchor" href="#commands">Commands</a>
-      <a class="anchor" href="#faq">FAQ</a>
-      <a class="anchor" href="#setup">Publish</a>
-      <button class="btn ghost iconbtn" id="glowBtn" type="button" title="Toggle glow">✨</button>
+  <header class="topbar">
+    <a class="brand" href="#top" id="brandHome">
+      <img class="logo" src="assets/nozzarri.png" alt="Nozzarri Tickets" />
+      <div>
+        <div class="bname">Nozzarri Tickets</div>
+        <div class="btag">Tickets Bot</div>
+      </div>
+    </a>
+
+    <nav class="nav">
+      <a href="#features" class="navLink">Features</a>
+      <a href="#commands" class="navLink">Commands</a>
+      <a href="#faq" class="navLink">FAQ</a>
     </nav>
+
+    <div class="actions">
+      <a class="btn ghost" id="youtubeBtn" href="#" target="_blank" rel="noreferrer" title="YouTube">▶️ YouTube</a>
+      <button class="btn ghost iconbtn" id="copyInvite" type="button" title="Copy invite">📋</button>
+      <a class="btn primary" id="inviteBtn" href="#" target="_blank" rel="noreferrer">➕ Add Bot</a>
+      <button class="btn ghost iconbtn menuBtn" id="menuBtn" type="button" aria-label="Open menu">☰</button>
+    </div>
   </header>
 
-  <main class="container">
-    <section class="hero">
-      <div class="hero-left reveal">
-        <div class="pill">
-          <span class="dot"></span>
-          Online • Fast • Clean UI
-        </div>
+  <!-- Mobile drawer -->
+  <div class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawerPanel">
+      <button class="btn ghost iconbtn closeX" id="closeDrawer" type="button" aria-label="Close">✕</button>
+      <a href="#features" class="navLink">Features</a>
+      <a href="#commands" class="navLink">Commands</a>
+      <a href="#faq" class="navLink">FAQ</a>
+      <a class="btn primary" id="inviteBtn2" href="#" target="_blank" rel="noreferrer">➕ Add Bot</a>
+      <a class="btn ghost" id="youtubeBtn2" href="#" target="_blank" rel="noreferrer">▶️ YouTube</a>
+      <button class="btn ghost" id="copyInvite2" type="button">📋 Copy invite</button>
+    </div>
+  </div>
 
-        <h1>
-          Ticket bot <span class="grad">premium</span> for Discord
-        </h1>
-
-        <p class="lead">
-          Support Tickets + Trade Tickets, clean panels, commands (/ and ?), logs, close ticket, owner-only setup.
-          Make your server look professional.
-        </p>
-
-        <div class="cta">
-          <a class="btn primary" id="inviteBtn" href="#" target="_blank" rel="noreferrer">
-            ➕ Add to Discord
-          </a>
-          <button class="btn ghost" id="copyInvite" type="button">
-            📋 Copy invite link
-          </button>
-        </div>
-
-        <div class="mini-stats">
-          <div class="stat">
-            <div class="statTop">⚡</div>
-            <div class="statBig">Instant</div>
-            <div class="statSub">Ticket creation</div>
+  <!-- GATE -->
+  <main class="container" id="gateRoot">
+    <section class="gate">
+      <div class="gateCard reveal">
+        <div class="gateHead">
+          <div>
+            <div class="pill"><span class="dot"></span> Online • Blue/Purple • Smooth</div>
+            <div class="gateTitle">Choose <span class="grad">Free</span> or <span class="grad">Premium</span></div>
+            <p class="gateDesc">
+              <b>Free</b> gives tickets + logs + clean panels. <b>Premium</b> unlocks extra commands and customization.
+            </p>
           </div>
-          <div class="stat">
-            <div class="statTop">🧩</div>
-            <div class="statBig">Panels</div>
-            <div class="statSub">Buttons + menus</div>
-          </div>
-          <div class="stat">
-            <div class="statTop">🔒</div>
-            <div class="statBig">Safe</div>
-            <div class="statSub">Role checks</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="hero-right">
-        <div class="card preview reveal">
-          <div class="cardTop">
-            <div class="badge">Ticket Panel</div>
-            <div class="chips">
-              <span class="chip">Support</span>
-              <span class="chip">Trade</span>
-              <span class="chip">Logs</span>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panelTitle">Open a ticket</div>
-            <div class="panelDesc">Choose what you need and the bot creates a private channel.</div>
-
-            <div class="panelBtns">
-              <button class="panelBtn" type="button">🎟️ Support Ticket</button>
-              <button class="panelBtn" type="button">🤝 Trade Ticket</button>
-            </div>
-
-            <div class="smallNote">
-              Tip: staff can use <b>/close</b> inside ticket channels.
-            </div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button class="btn ghost" id="copySite" type="button" title="Copy website link">🔗 Copy site</button>
           </div>
         </div>
 
-        <div class="card mini reveal">
-          <div class="miniRow">
-            <div class="miniIcon">✅</div>
-            <div>
-              <div class="miniTitle">Clean design</div>
-              <div class="miniText">Dark blue + black, modern cards & glow</div>
+        <div class="gateGrid">
+          <!-- FREE -->
+          <div class="pick" id="pickFree" role="button" tabindex="0" aria-label="Select Free">
+            <div class="pickGlow" aria-hidden="true"></div>
+            <div class="pickTop">
+              <div class="tag free">FREE</div>
+              <div class="kbd">instant access</div>
+            </div>
+            <div class="pickTitle">Nozzarri Tickets — Free</div>
+            <div class="pickText">
+              Support + Trade tickets, clean UI, logs, safe permission checks. Perfect for public servers.
+            </div>
+            <div class="pickBtns">
+              <button class="miniBtn primary" id="freeOpen">Open Free</button>
+              <button class="miniBtn" id="freeInvite">Invite Bot</button>
             </div>
           </div>
-          <div class="miniRow">
-            <div class="miniIcon">🧠</div>
-            <div>
-              <div class="miniTitle">Easy to use</div>
-              <div class="miniText">Public /help, owner-only setup with ?setup</div>
+
+          <!-- PREMIUM -->
+          <div class="pick" id="pickPrem" role="button" tabindex="0" aria-label="Select Premium">
+            <div class="pickGlow" aria-hidden="true"></div>
+            <div class="pickTop">
+              <div class="tag prem">PREMIUM</div>
+              <div class="kbd">keys + commands</div>
+            </div>
+            <div class="pickTitle">Nozzarri Tickets — Premium</div>
+            <div class="pickText">
+              Premium unlocks extra commands + customization for your server. Buy a key and redeem in Discord.
+            </div>
+            <div class="pickBtns">
+              <button class="miniBtn primary" id="premOpen">Open Premium</button>
+              <a class="miniBtn" id="premYoutube" href="#" target="_blank" rel="noreferrer">Watch updates</a>
             </div>
           </div>
         </div>
       </div>
     </section>
-
-    <section id="features" class="section">
-      <h2 class="reveal">Features</h2>
-      <div class="grid">
-        <div class="feature card reveal">
-          <div class="icon">🎛️</div>
-          <div class="ftitle">Setup Panel</div>
-          <div class="ftext">Pick categories/roles/logs — simple and clean.</div>
-        </div>
-        <div class="feature card reveal">
-          <div class="icon">🔐</div>
-          <div class="ftitle">Permissions</div>
-          <div class="ftext">Private tickets: only user + staff can see the channel.</div>
-        </div>
-        <div class="feature card reveal">
-          <div class="icon">🧾</div>
-          <div class="ftitle">Logs</div>
-          <div class="ftext">Ticket create/close actions can be sent into one log channel.</div>
-        </div>
-        <div class="feature card reveal">
-          <div class="icon">🧰</div>
-          <div class="ftitle">Commands</div>
-          <div class="ftext">Slash commands for everyone, prefix commands where needed.</div>
-        </div>
-      </div>
-    </section>
-
-    <section id="commands" class="section">
-      <h2 class="reveal">Commands</h2>
-      <p class="muted reveal">Click a command to copy it.</p>
-
-      <div class="grid cmds">
-        <button class="cmd card reveal" data-copy="/help">/help</button>
-        <button class="cmd card reveal" data-copy="/close">/close</button>
-        <button class="cmd card reveal" data-copy="?setup">?setup (owner)</button>
-        <button class="cmd card reveal" data-copy="?help">?help (owner)</button>
-      </div>
-    </section>
-
-    <section id="faq" class="section">
-      <h2 class="reveal">FAQ</h2>
-      <div class="faq">
-        <details class="card reveal">
-          <summary>Why does it say “Finish setup” when I click the panel?</summary>
-          <p>If the server setup is not complete (categories/roles/log channel), the bot should block ticket creation and show a clear message.</p>
-        </details>
-        <details class="card reveal">
-          <summary>How long do slash commands take to appear in other servers?</summary>
-          <p>Guild-only slash commands appear fast. Global commands can take longer (sometimes up to ~1 hour). Usually it’s minutes.</p>
-        </details>
-        <details class="card reveal">
-          <summary>How do I fix favicon showing wrong / broken?</summary>
-          <p>Make sure the file name matches exactly: <b>assets/dragon.png</b> (case-sensitive on GitHub). Then refresh with a new filename like dragon-v2.png.</p>
-        </details>
-      </div>
-    </section>
-
-    <section id="setup" class="section">
-      <h2 class="reveal">Publish on GitHub Pages</h2>
-      <ol class="steps card reveal">
-        <li>In your repo, create folder <b>assets</b> and put <b>dragon.png</b> inside.</li>
-        <li>Put this <b>index.html</b> in the repo root (same level as assets).</li>
-        <li>GitHub → <b>Settings → Pages</b>.</li>
-        <li>Source: <b>Deploy from a branch</b>.</li>
-        <li>Branch: <b>main</b>, folder: <b>/ (root)</b>.</li>
-        <li>Save → GitHub gives you a <b>github.io</b> link.</li>
-      </ol>
-    </section>
-
-    <footer class="footer">
-      <div class="footLeft">
-        <img class="logo sm" src="assets/dragon.png" alt="Dragon Services" />
-        <div>
-          <div class="brand">Dragon Services</div>
-          <div class="muted">© <span id="year"></span> • Tickets Bot</div>
-        </div>
-      </div>
-
-      <div class="footRight">
-        <a href="#top">Back to top</a>
-      </div>
-    </footer>
   </main>
+
+  <!-- FREE VIEW -->
+  <div class="view" id="freeView">
+    <main class="container">
+      <section class="hero">
+        <div class="hero-left reveal">
+          <div class="pill"><span class="dot"></span> Free Panel • Tickets • Logs</div>
+
+          <h1>Tickets with <span class="grad">premium</span> style</h1>
+
+          <p class="lead">
+            Support Tickets + Trade Tickets, clean panels, setup, logs, and smart permission checks.
+            Built for public servers and smooth staff workflows.
+          </p>
+
+          <div class="cta">
+            <a class="btn primary" id="inviteBtn3" href="#" target="_blank" rel="noreferrer">➕ Add Bot</a>
+            <button class="btn ghost" id="copyInvite3" type="button">📋 Copy invite</button>
+            <a class="btn ghost" id="youtubeBtn3" href="#" target="_blank" rel="noreferrer">▶️ YouTube</a>
+            <button class="btn ghost" id="backGate1" type="button">⬅ Free / Premium</button>
+          </div>
+
+          <div class="stats">
+            <div class="stat">
+              <div class="statTop">⚡</div>
+              <div class="statBig">Instant</div>
+              <div class="statSub">Ticket creation</div>
+            </div>
+            <div class="stat">
+              <div class="statTop">🧩</div>
+              <div class="statBig">Panels</div>
+              <div class="statSub">Buttons + menus</div>
+            </div>
+            <div class="stat">
+              <div class="statTop">🔒</div>
+              <div class="statBig">Safe</div>
+              <div class="statSub">No admin needed</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-right">
+          <div class="card preview reveal">
+            <div class="cardTop">
+              <div class="badge">Ticket Panel</div>
+              <div class="chips">
+                <span class="chip">Support</span>
+                <span class="chip">Trade</span>
+                <span class="chip">Logs</span>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panelHead">
+                <img class="panelAvatar" src="assets/nozzarri.png" alt="bot" />
+                <div>
+                  <div class="panelTitle">Open a ticket</div>
+                  <div class="panelDesc">Choose what you need — the bot creates a private channel.</div>
+                </div>
+              </div>
+
+              <div class="panelBtns">
+                <button class="panelBtn" type="button" onclick="fakeClick('Support Ticket')">
+                  <span>🎟️ Support Ticket</span>
+                  <small>Fast help</small>
+                </button>
+                <button class="panelBtn" type="button" onclick="fakeClick('Trade Ticket')">
+                  <span>🤝 Trade Ticket</span>
+                  <small>Private deal</small>
+                </button>
+              </div>
+
+              <div class="smallNote">Tip: staff can use <b>?close</b> directly in ticket channels.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <h2 class="reveal">Features</h2>
+        <div class="grid">
+          <div class="feature card reveal">
+            <div class="icon">🎛️</div>
+            <div class="ftitle">Setup panel</div>
+            <div class="ftext">Pick categories, roles, logs, then post panels.</div>
+          </div>
+          <div class="feature card reveal">
+            <div class="icon">🔐</div>
+            <div class="ftitle">Private tickets</div>
+            <div class="ftext">Only the user + staff can see the channel.</div>
+          </div>
+          <div class="feature card reveal">
+            <div class="icon">🧾</div>
+            <div class="ftitle">Logs</div>
+            <div class="ftext">Ticket create/close actions sent to your log channel.</div>
+          </div>
+          <div class="feature card reveal">
+            <div class="icon">✨</div>
+            <div class="ftitle">Clean UI</div>
+            <div class="ftext">Smooth animations, modern cards, premium feel.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="commands" class="section">
+        <h2 class="reveal">Commands</h2>
+        <p class="muted reveal">Click a command to copy it.</p>
+
+        <div class="grid cmds">
+          <button class="cmd card reveal" data-copy="?help"><span>?help</span> <span class="kbd">copy</span></button>
+          <button class="cmd card reveal" data-copy="?setup"><span>?setup (owner)</span> <span class="kbd">copy</span></button>
+          <button class="cmd card reveal" data-copy="?close"><span>?close</span> <span class="kbd">copy</span></button>
+          <button class="cmd card reveal" data-copy="?panel"><span>?panel (owner)</span> <span class="kbd">copy</span></button>
+        </div>
+      </section>
+
+      <section id="faq" class="section">
+        <h2 class="reveal">FAQ</h2>
+        <div class="faq">
+          <details class="card reveal">
+            <summary>Does the bot need Administrator?</summary>
+            <p>No. The invite uses only the permissions needed for tickets (no Administrator).</p>
+          </details>
+          <details class="card reveal">
+            <summary>Why does it say “Finish setup”?</summary>
+            <p>If setup isn’t completed (categories/roles/log channel), the bot blocks ticket creation until you finish setup.</p>
+          </details>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div class="footLeft">
+          <img class="logo" src="assets/nozzarri.png" alt="Nozzarri Tickets" style="width:36px;height:36px;border-radius:12px" />
+          <div>
+            <div class="bname">Nozzarri Tickets</div>
+            <div class="muted">© <span id="year"></span> • Tickets Bot</div>
+          </div>
+        </div>
+        <div class="footRight">
+          <a href="#" id="backGate2">Free / Premium</a>
+          <a href="#" id="footerYoutube">YouTube</a>
+          <a href="#top">Back to top</a>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <!-- PREMIUM VIEW -->
+  <div class="view" id="premView">
+    <main class="container premWrap">
+      <div class="premGrid">
+        <div class="premLeft">
+          <div class="premHero reveal">
+            <div class="premHeroGlow" aria-hidden="true"></div>
+
+            <div class="premTopPill">
+              <div class="pill"><span class="dot"></span> Premium • Keys • Extra Commands</div>
+            </div>
+
+            <div class="premTitleBig">Nozzarri Tickets <span class="grad">Premium</span></div>
+
+            <p class="premSub">
+              Premium unlocks extra commands and customization for your server.
+              Buy a key, then contact the owner to receive your redeem code. (Manual verification = safer.)
+            </p>
+
+            <div class="premActions">
+              <button class="btn primary" id="premBuyOpen" type="button">💎 Buy Premium</button>
+              <button class="btn ghost" id="premCmdsScroll" type="button">✨ Premium commands</button>
+              <button class="btn ghost" id="copyOwner" type="button">👤 Copy owner</button>
+              <button class="btn ghost" id="backGate3" type="button">⬅ Free / Premium</button>
+            </div>
+
+            <div class="tabs" style="margin-top:16px;">
+              <button class="tabBtn active" id="tabFeatures" type="button">Features</button>
+              <button class="tabBtn" id="tabCommands" type="button">Commands</button>
+              <button class="tabBtn" id="tabHow" type="button">How to buy</button>
+            </div>
+
+            <div class="premPanel" id="premPanel">
+              <!-- Filled by JS -->
+            </div>
+          </div>
+        </div>
+
+        <div class="premRight">
+          <div class="premRightCard reveal">
+            <h3>Premium Plans</h3>
+
+            <div class="priceGrid">
+              <div class="priceCard" data-plan="15 DAYS" data-price="1">
+                <div class="priceTop">
+                  <div class="priceBadge">15 DAYS</div>
+                  <div class="priceBadge">$1</div>
+                </div>
+                <div class="priceName">Starter Key</div>
+                <div class="priceMoney">$1</div>
+                <div class="priceSub">Try premium for 15 days.</div>
+                <div class="priceBtnRow">
+                  <button class="miniBtn primary planBtn" type="button">Buy 15d</button>
+                  <button class="miniBtn copyLtcBtn" type="button">Copy LTC</button>
+                </div>
+              </div>
+
+              <div class="priceCard" data-plan="1 MONTH" data-price="2">
+                <div class="priceTop">
+                  <div class="priceBadge best">1 MONTH • BEST</div>
+                  <div class="priceBadge">$2</div>
+                </div>
+                <div class="priceName">Pro Key</div>
+                <div class="priceMoney">$2</div>
+                <div class="priceSub">Most popular plan.</div>
+                <div class="priceBtnRow">
+                  <button class="miniBtn primary planBtn" type="button">Buy 1m</button>
+                  <button class="miniBtn copyLtcBtn" type="button">Copy LTC</button>
+                </div>
+              </div>
+
+              <div class="priceCard" data-plan="3 MONTHS" data-price="4">
+                <div class="priceTop">
+                  <div class="priceBadge">3 MONTHS</div>
+                  <div class="priceBadge">$4</div>
+                </div>
+                <div class="priceName">Ultra Key</div>
+                <div class="priceMoney">$4</div>
+                <div class="priceSub">Best value (longer access).</div>
+                <div class="priceBtnRow">
+                  <button class="miniBtn primary planBtn" type="button">Buy 3m</button>
+                  <button class="miniBtn copyLtcBtn" type="button">Copy LTC</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="finePrint">
+              Payments are in LTC. Send the USD value in LTC (rate changes). Always double-check the address.
+              After sending, contact the owner with your Discord username so you can receive your redeem code.
+            </div>
+
+            <div class="rowBtns" style="margin-top:12px;">
+              <button class="btn primary" id="premBuyOpen2" type="button">💎 Buy Premium</button>
+              <button class="btn ghost" id="copyLTC" type="button">📋 Copy LTC</button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="finePrint">
+              Owner contact: <b class="mono" id="ownerName">n_om_e</b>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- BUY MODAL -->
+  <div class="modal" id="buyModal" aria-hidden="true">
+    <div class="modalCard">
+      <div class="modalGlow" aria-hidden="true"></div>
+      <div class="modalTop">
+        <div class="modalTitle" id="buyTitle">Buy Premium</div>
+        <button class="btn ghost iconbtn" id="closeBuy" type="button" aria-label="Close">✕</button>
+      </div>
+
+      <div class="modalText" id="buyText">
+        Choose a plan to see the payment details.
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="fieldRow">
+        <div class="label">Your Discord username (so owner can give you the code)</div>
+        <input class="input" id="buyerDiscord" placeholder="example: nozzarri#0001 or nozzarri" />
+      </div>
+
+      <div class="fieldRow">
+        <div class="label">LTC address</div>
+        <input class="input mono" id="ltcAddr" readonly />
+      </div>
+
+      <div class="fieldRow">
+        <div class="label">Message to owner (copy & send after you pay)</div>
+        <input class="input" id="msgOwner" readonly />
+      </div>
+
+      <div class="rowBtns">
+        <button class="btn primary" id="copyPayInfo" type="button">📋 Copy payment + message</button>
+        <button class="btn ghost" id="copyAddrOnly" type="button">📋 Copy LTC only</button>
+        <button class="btn ghost" id="copyOwnerOnly" type="button">👤 Copy owner</button>
+      </div>
+
+      <div class="finePrint" style="position:relative; margin-top:10px;">
+        After you send payment, add/DM the owner on Discord: <b class="mono">n_om_e</b> and paste the message.
+        Manual verification avoids fake auto systems.
+      </div>
+    </div>
+  </div>
 
   <button id="toTop" class="toTop" type="button" aria-label="Back to top">⬆️</button>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script>
-    // === CONFIG ===
+    // ===== CONFIG =====
+    const BRAND = "Nozzarri Tickets";
+    const OWNER_DISCORD = "n_om_e";
+
     const CLIENT_ID = "1442592762108186675";
-    const PERMISSIONS = "277025770560";
+
+    // Minimal perms (no Administrator) but enough for a ticket bot:
+    // VIEW_CHANNEL, SEND_MESSAGES, EMBED_LINKS, ATTACH_FILES, READ_MESSAGE_HISTORY, ADD_REACTIONS,
+    // MANAGE_CHANNELS, MANAGE_MESSAGES
+    const PERMISSIONS = "126032";
+
     const INVITE_URL =
-      `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}` +
-      `&scope=bot%20applications.commands&permissions=${PERMISSIONS}`;
+      `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&scope=bot%20applications.commands&permissions=${PERMISSIONS}`;
 
-    // === ELEMENTS ===
-    const inviteBtn = document.getElementById("inviteBtn");
-    const copyInvite = document.getElementById("copyInvite");
+    const YT_URL = "https://www.youtube.com/channel/UC8Ovc5xT-tXXIjxLnVe72dQ";
+
+    // Your LTC address
+    const LTC_ADDRESS = "LPxonLCBtrcHnYAompBSXsboTfJQ8Eyuz8";
+
+    // ===== LINKS =====
+    [inviteBtn, inviteBtn2, inviteBtn3].forEach(a => { if(a) a.href = INVITE_URL; });
+
+    [youtubeBtn, youtubeBtn2, youtubeBtn3, premYoutube, footerYoutube].forEach(a => { if(a) a.href = YT_URL; });
+
+    document.getElementById("year").textContent = new Date().getFullYear();
+    document.getElementById("ownerName").textContent = OWNER_DISCORD;
+
+    // ===== TOAST + COPY =====
     const toast = document.getElementById("toast");
-    const toTop = document.getElementById("toTop");
-    const year = document.getElementById("year");
-    const glowBtn = document.getElementById("glowBtn");
-
-    inviteBtn.href = INVITE_URL;
-    year.textContent = new Date().getFullYear();
-
-    // toast helper
     let toastTimer = null;
+
     function showToast(msg){
       toast.textContent = msg;
       toast.classList.add("show");
@@ -650,51 +1312,352 @@
       toastTimer = setTimeout(()=> toast.classList.remove("show"), 1700);
     }
 
-    // copy invite
-    copyInvite.addEventListener("click", async () => {
+    async function copyText(text){
       try{
-        await navigator.clipboard.writeText(INVITE_URL);
-        showToast("Copied invite link ✅");
+        await navigator.clipboard.writeText(text);
+        showToast("Copied ✅");
       }catch{
-        showToast("Copy failed ❌ (try manual)");
+        showToast("Copy failed ❌");
       }
+    }
+
+    // copy buttons
+    document.getElementById("copyInvite")?.addEventListener("click", ()=>copyText(INVITE_URL));
+    document.getElementById("copyInvite2")?.addEventListener("click", ()=>copyText(INVITE_URL));
+    document.getElementById("copyInvite3")?.addEventListener("click", ()=>copyText(INVITE_URL));
+    document.getElementById("copySite")?.addEventListener("click", ()=>copyText(location.href));
+
+    document.getElementById("copyOwner")?.addEventListener("click", ()=>copyText(OWNER_DISCORD));
+    document.getElementById("copyLTC")?.addEventListener("click", ()=>copyText(LTC_ADDRESS));
+    document.querySelectorAll(".copyLtcBtn").forEach(btn => btn.addEventListener("click", ()=>copyText(LTC_ADDRESS)));
+
+    document.querySelectorAll("[data-copy]").forEach(btn=>{
+      btn.addEventListener("click", ()=>copyText(btn.getAttribute("data-copy")));
     });
 
-    // copy commands
-    document.querySelectorAll("[data-copy]").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const text = btn.getAttribute("data-copy");
-        try{
-          await navigator.clipboard.writeText(text);
-          showToast(`Copied: ${text}`);
-        }catch{
-          showToast("Copy failed ❌");
-        }
-      });
-    });
+    // ===== FAKE PANEL CLICK =====
+    window.fakeClick = (name) => showToast(`${name} (demo)`);
 
-    // scroll to top
-    window.addEventListener("scroll", () => {
+    // ===== TOP BUTTON =====
+    const toTop = document.getElementById("toTop");
+    window.addEventListener("scroll", ()=>{
       if(window.scrollY > 500) toTop.classList.add("show");
       else toTop.classList.remove("show");
-    });
-    toTop.addEventListener("click", () => window.scrollTo({top:0, behavior:"smooth"}));
+    }, {passive:true});
+    toTop.addEventListener("click", ()=>window.scrollTo({top:0, behavior:"smooth"}));
 
-    // glow toggle
-    let glowOn = true;
-    glowBtn?.addEventListener("click", () => {
-      glowOn = !glowOn;
-      document.querySelector(".bg-glow").style.opacity = glowOn ? ".92" : ".35";
-      showToast(glowOn ? "Glow ON ✨" : "Glow OFF 🌑");
-    });
+    // ===== MOBILE DRAWER =====
+    const drawer = document.getElementById("drawer");
+    const menuBtn = document.getElementById("menuBtn");
+    const closeDrawer = document.getElementById("closeDrawer");
 
-    // reveal on scroll
+    function setDrawer(open){
+      drawer.classList.toggle("open", open);
+      drawer.setAttribute("aria-hidden", String(!open));
+    }
+    menuBtn?.addEventListener("click", ()=>setDrawer(true));
+    closeDrawer?.addEventListener("click", ()=>setDrawer(false));
+    drawer?.addEventListener("click", (e)=>{ if(e.target === drawer) setDrawer(false); });
+    drawer?.querySelectorAll("a").forEach(a=>a.addEventListener("click", ()=>setDrawer(false)));
+
+    // ===== REVEAL ON SCROLL =====
     const io = new IntersectionObserver((entries)=>{
       for(const e of entries){
         if(e.isIntersecting) e.target.classList.add("show");
       }
-    }, {threshold: 0.12});
+    }, {threshold: .15});
     document.querySelectorAll(".reveal").forEach(el=>io.observe(el));
+
+    // ===== STARS CANVAS =====
+    const canvas = document.getElementById("stars");
+    const ctx = canvas.getContext("2d");
+
+    function resize(){
+      canvas.width = Math.floor(innerWidth * devicePixelRatio);
+      canvas.height = Math.floor(innerHeight * devicePixelRatio);
+      canvas.style.width = innerWidth + "px";
+      canvas.style.height = innerHeight + "px";
+    }
+    addEventListener("resize", resize, {passive:true});
+    resize();
+
+    let stars = [];
+    function initStars(){
+      const count = Math.min(220, Math.floor(innerWidth / 7));
+      stars = Array.from({length: count}, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: (Math.random()*1.6 + .2) * devicePixelRatio,
+        a: Math.random()*.6 + .12,
+        s: (Math.random()*.35 + .05) * devicePixelRatio
+      }));
+    }
+    initStars();
+
+    function draw(){
+      ctx.clearRect(0,0,canvas.width, canvas.height);
+      for(const st of stars){
+        st.y += st.s;
+        if(st.y > canvas.height + 10){
+          st.y = -10;
+          st.x = Math.random() * canvas.width;
+        }
+        ctx.globalAlpha = st.a;
+        ctx.beginPath();
+        ctx.arc(st.x, st.y, st.r, 0, Math.PI*2);
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(draw);
+    }
+    draw();
+
+    // ===== LOADER =====
+    const loader = document.getElementById("loader");
+    const barFill = document.getElementById("barFill");
+    const loadPct = document.getElementById("loadPct");
+    const loadText = document.getElementById("loadText");
+
+    const steps = [
+      ["Booting UI", 18],
+      ["Loading assets", 46],
+      ["Initializing animations", 72],
+      ["Finalizing", 92],
+      ["Ready", 100],
+    ];
+
+    (function runLoader(){
+      let i = 0;
+      function step(){
+        const [t, p] = steps[i];
+        loadText.textContent = t;
+        barFill.style.width = p + "%";
+        loadPct.textContent = p + "%";
+        i++;
+        if(i < steps.length){
+          setTimeout(step, 240 + Math.random()*220);
+        }else{
+          setTimeout(() => loader.classList.add("hide"), 420);
+        }
+      }
+      setTimeout(step, 260);
+    })();
+
+    // ===== VIEW SWITCH =====
+    const gateRoot = document.getElementById("gateRoot");
+    const freeView = document.getElementById("freeView");
+    const premView = document.getElementById("premView");
+
+    function showGate(){
+      gateRoot.style.display = "block";
+      freeView.classList.remove("show");
+      premView.classList.remove("show");
+      freeView.style.display = "none";
+      premView.style.display = "none";
+      window.scrollTo({top:0, behavior:"smooth"});
+    }
+
+    function showFree(){
+      gateRoot.style.display = "none";
+      premView.classList.remove("show");
+      premView.style.display = "none";
+      freeView.style.display = "block";
+      freeView.classList.add("show");
+      window.scrollTo({top:0, behavior:"smooth"});
+      showToast("Free opened ✅");
+    }
+
+    function showPrem(){
+      gateRoot.style.display = "none";
+      freeView.classList.remove("show");
+      freeView.style.display = "none";
+      premView.style.display = "block";
+      premView.classList.add("show");
+      window.scrollTo({top:0, behavior:"smooth"});
+      showToast("Premium opened 💎");
+    }
+
+    // Gate buttons
+    document.getElementById("pickFree").addEventListener("click", (e)=>{ if(e.target.closest("button")) return; showFree(); });
+    document.getElementById("freeOpen").addEventListener("click", showFree);
+    document.getElementById("freeInvite").addEventListener("click", ()=> window.open(INVITE_URL, "_blank"));
+
+    document.getElementById("pickPrem").addEventListener("click", (e)=>{ if(e.target.closest("a,button")) return; showPrem(); });
+    document.getElementById("premOpen").addEventListener("click", showPrem);
+
+    // Back buttons
+    document.getElementById("backGate1")?.addEventListener("click", showGate);
+    document.getElementById("backGate2")?.addEventListener("click", (e)=>{ e.preventDefault(); showGate(); });
+    document.getElementById("backGate3")?.addEventListener("click", showGate);
+
+    // Nav links: if user clicks Features etc while on gate -> open free
+    document.querySelectorAll(".navLink").forEach(a=>{
+      a.addEventListener("click", ()=>{
+        if(gateRoot.style.display !== "none"){
+          showFree();
+        }
+      });
+    });
+
+    // ===== PREMIUM TABS CONTENT =====
+    const premPanel = document.getElementById("premPanel");
+    const tabFeatures = document.getElementById("tabFeatures");
+    const tabCommands = document.getElementById("tabCommands");
+    const tabHow = document.getElementById("tabHow");
+
+    const premiumCommands = [
+      { cmd: "?premium-help", desc: "Shows all premium commands you can use." },
+      { cmd: "?pfx set $", desc: "Change the server command prefix (example: $)." },
+      { cmd: "?pfx reset", desc: "Reset prefix back to ?." },
+      { cmd: "?pticketname set Trade Deal", desc: "Custom ticket channel name template." },
+      { cmd: "?pticketname reset", desc: "Reset ticket naming to default." },
+      { cmd: "?prole set Premium", desc: "Set a premium staff/priority role." },
+      { cmd: "?prole clear", desc: "Remove premium role settings." },
+      { cmd: "?pautoclose 24h", desc: "Auto-close inactive tickets after time." },
+      { cmd: "?pautoclose off", desc: "Disable auto-close." },
+      { cmd: "?ptheme neon", desc: "Set premium theme (example: neon)." },
+      { cmd: "?ptheme classic", desc: "Set premium theme (classic)." },
+      { cmd: "?pstatus", desc: "Check premium status + expiry." },
+    ];
+
+    function setActiveTab(active){
+      [tabFeatures, tabCommands, tabHow].forEach(b=>b.classList.remove("active"));
+      active.classList.add("active");
+    }
+
+    function renderFeatures(){
+      premPanel.innerHTML = `
+        <div style="font-weight:1000;font-size:16px;">Premium features</div>
+        <div class="muted" style="margin-top:8px;font-weight:900;line-height:1.6;">
+          • Custom prefix for commands (keep your bot private) <br>
+          • Custom ticket channel naming (Trade/Support branding) <br>
+          • Premium theme styles (neon/classic) <br>
+          • Premium role settings (priority staff tools) <br>
+          • Auto-close inactive tickets (clean server) <br>
+          • Premium status & expiry checking
+        </div>
+        <div class="finePrint" style="margin-top:10px;">
+          Premium commands only work if your server has a valid premium key activated.
+        </div>
+      `;
+    }
+
+    function renderCommands(){
+      const cards = premiumCommands.map(x=>`
+        <div class="cmdCard">
+          <div style="min-width:0;">
+            <div class="cmdName mono">${x.cmd}</div>
+            <div class="cmdHint">${x.desc}</div>
+          </div>
+          <button class="cmdCopy" type="button" data-copy="${x.cmd}">copy</button>
+        </div>
+      `).join("");
+
+      premPanel.innerHTML = `
+        <div style="font-weight:1000;font-size:16px;">Premium commands</div>
+        <div class="muted" style="margin-top:6px;font-weight:900;">Click copy and paste in Discord.</div>
+        <div class="cmdList">${cards}</div>
+      `;
+
+      premPanel.querySelectorAll("[data-copy]").forEach(btn=>{
+        btn.addEventListener("click", ()=>copyText(btn.getAttribute("data-copy")));
+      });
+    }
+
+    function renderHow(){
+      premPanel.innerHTML = `
+        <div style="font-weight:1000;font-size:16px;">How to buy & receive your key</div>
+        <div class="muted" style="margin-top:8px;font-weight:900;line-height:1.65;">
+          1) Click a plan on the right (15d / 1m / 3m). <br>
+          2) Copy the LTC address and send payment. <br>
+          3) Add/DM the owner <b class="mono">${OWNER_DISCORD}</b> with your Discord username and plan. <br>
+          4) Owner verifies payment and sends your redeem code. <br>
+          5) Redeem in Discord using <b class="mono">?premium redeem YOURCODE</b> (example). <br><br>
+          Manual verification avoids fake “auto” scam systems.
+        </div>
+      `;
+    }
+
+    // default
+    renderFeatures();
+
+    tabFeatures.addEventListener("click", ()=>{ setActiveTab(tabFeatures); renderFeatures(); });
+    tabCommands.addEventListener("click", ()=>{ setActiveTab(tabCommands); renderCommands(); });
+    tabHow.addEventListener("click", ()=>{ setActiveTab(tabHow); renderHow(); });
+
+    document.getElementById("premCmdsScroll").addEventListener("click", ()=>{
+      setActiveTab(tabCommands);
+      renderCommands();
+      premPanel.scrollIntoView({behavior:"smooth", block:"start"});
+    });
+
+    // ===== BUY MODAL LOGIC =====
+    const buyModal = document.getElementById("buyModal");
+    const closeBuy = document.getElementById("closeBuy");
+    const buyTitle = document.getElementById("buyTitle");
+    const buyText = document.getElementById("buyText");
+    const buyerDiscord = document.getElementById("buyerDiscord");
+    const ltcAddr = document.getElementById("ltcAddr");
+    const msgOwner = document.getElementById("msgOwner");
+
+    let selectedPlan = { plan:"", price:"" };
+
+    function openBuy(plan, price){
+      selectedPlan = { plan, price };
+      buyTitle.textContent = `Buy Premium — ${plan}`;
+      buyText.textContent = `Send ~$${price} worth of LTC to the address below. After payment, DM the owner to receive your redeem code.`;
+      ltcAddr.value = LTC_ADDRESS;
+      const duser = buyerDiscord.value?.trim() || "(your discord username)";
+      msgOwner.value = `Hi! I bought Nozzarri Tickets Premium (${plan} / $${price}). My Discord: ${duser}. Please verify and send my redeem code.`;
+      buyModal.classList.add("show");
+      buyModal.setAttribute("aria-hidden","false");
+    }
+    function closeBuyModal(){
+      buyModal.classList.remove("show");
+      buyModal.setAttribute("aria-hidden","true");
+    }
+
+    document.getElementById("premBuyOpen").addEventListener("click", ()=>openBuy("1 MONTH", "2"));
+    document.getElementById("premBuyOpen2").addEventListener("click", ()=>openBuy("1 MONTH", "2"));
+    closeBuy.addEventListener("click", closeBuyModal);
+    buyModal.addEventListener("click", (e)=>{ if(e.target === buyModal) closeBuyModal(); });
+
+    // plan cards click
+    document.querySelectorAll(".priceCard").forEach(card=>{
+      card.querySelector(".planBtn").addEventListener("click", ()=>{
+        openBuy(card.dataset.plan, card.dataset.price);
+      });
+    });
+
+    buyerDiscord.addEventListener("input", ()=>{
+      const duser = buyerDiscord.value?.trim() || "(your discord username)";
+      if(!selectedPlan.plan) return;
+      msgOwner.value = `Hi! I bought Nozzarri Tickets Premium (${selectedPlan.plan} / $${selectedPlan.price}). My Discord: ${duser}. Please verify and send my redeem code.`;
+    });
+
+    document.getElementById("copyPayInfo").addEventListener("click", ()=>{
+      const duser = buyerDiscord.value?.trim() || "(your discord username)";
+      const text =
+`Nozzarri Tickets Premium
+Plan: ${selectedPlan.plan || "N/A"} ($${selectedPlan.price || "N/A"})
+LTC Address: ${LTC_ADDRESS}
+Owner: ${OWNER_DISCORD}
+Message to owner: ${msgOwner.value || `Hi! I bought Nozzarri Tickets Premium. My Discord: ${duser}.`}`;
+      copyText(text);
+    });
+
+    document.getElementById("copyAddrOnly").addEventListener("click", ()=>copyText(LTC_ADDRESS));
+    document.getElementById("copyOwnerOnly").addEventListener("click", ()=>copyText(OWNER_DISCORD));
+
+    // ===== Brand click =====
+    document.getElementById("brandHome").addEventListener("click", (e)=>{
+      // If inside a view, just scroll to top instead of jumping
+      if(gateRoot.style.display === "none"){
+        e.preventDefault();
+        window.scrollTo({top:0, behavior:"smooth"});
+      }
+    });
   </script>
 </body>
 </html>

@@ -1,0 +1,109 @@
+{
+  "1454142448061386948": {
+    "isPremium": true,
+    "plan": "15d",
+    "activatedAt": "2025-12-27T21:04:15.201Z",
+    "expiresAt": "2026-01-11T21:04:15.200Z",
+    "branding": {
+      "name": "me Lelo",
+      "iconUrl": null,
+      "accent": null
+    },
+    "features": {
+      "pingMode": "here",
+      "pingRoleId": null,
+      "transcripts": false,
+      "transcriptChannelId": null,
+      "autoCloseMinutes": 5,
+      "customCloseReasons": [],
+      "autoTagClaims": false,
+      "prioritySupport": false
+    }
+  },
+  "1454607274512220343": {
+    "isPremium": true,
+    "plan": "3m",
+    "activatedAt": "2025-12-27T22:58:40.355Z",
+    "expiresAt": "2026-04-12T19:53:58.669Z",
+    "branding": {
+      "name": "Nozzarri",
+      "iconUrl": null,
+      "accent": null
+    },
+    "features": {
+      "pingMode": "here",
+      "pingRoleId": null,
+      "botNickname": "Nozzarri Ticket",
+      "transcripts": false,
+      "transcriptChannelId": "1454997294159102094",
+      "autoCloseMinutes": 20,
+      "customCloseReasons": [],
+      "autoTagClaims": true,
+      "prioritySupport": true,
+      "ticketNameTemplate": "Nozzarri Ticket {user}",
+      "welcomeMessage": "🚀Welcome Im Nozzari Ticket Bot And Im Here To Help You",
+      "pingRoleIds": [
+        "1454607868404826224",
+        "1454607693385044069",
+        "1454607767644930164"
+      ]
+    }
+  },
+  "1445123206855000216": {
+    "isPremium": false,
+    "plan": "15d",
+    "activatedAt": "2025-12-27T23:02:10.202Z",
+    "expiresAt": "2026-01-11T23:02:10.202Z",
+    "branding": {
+      "name": "me NIGGERS",
+      "iconUrl": null,
+      "accent": null
+    },
+    "features": {
+      "pingMode": "here",
+      "pingRoleId": null,
+      "transcripts": false,
+      "transcriptChannelId": null,
+      "autoCloseMinutes": 0,
+      "customCloseReasons": [],
+      "autoTagClaims": false,
+      "prioritySupport": false,
+      "botNickname": "Nigger"
+    }
+  },
+  "1446151351288725577": {
+    "isPremium": false,
+    "plan": "custom",
+    "activatedAt": "2025-12-30T21:02:59.532Z",
+    "expiresAt": "2026-01-09T21:02:59.531Z",
+    "branding": {
+      "name": "Nozzarri Tickets",
+      "iconUrl": null,
+      "accent": null
+    },
+    "features": {
+      "pingMode": "here",
+      "pingRoleId": null,
+      "transcripts": false,
+      "transcriptChannelId": null,
+      "autoCloseMinutes": 0,
+      "customCloseReasons": [],
+      "autoTagClaims": false,
+      "prioritySupport": false
+    }
+  },
+  "1439446842038288436": {
+    "isPremium": true,
+    "plan": "custom",
+    "activatedAt": "2026-01-16T15:34:35.157Z",
+    "expiresAt": "2027-01-16T15:34:35.157Z",
+    "branding": {},
+    "features": {
+      "autoCloseMinutes": 3000,
+      "transcripts": true,
+      "botNickname": "SafeSwap",
+      "pingRoleId": null,
+      "pingMode": "here"
+    }
+  }
+}

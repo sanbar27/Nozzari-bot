@@ -1,0 +1,69 @@
+{
+  "DS-95UE-VXJV-ENH4": {
+    "plan": "15d",
+    "durationDays": 15,
+    "createdAt": "2025-12-27T21:03:45.677Z",
+    "createdBy": "1393663170840887307",
+    "used": true,
+    "usedByGuildId": "1454142448061386948",
+    "usedAt": "2025-12-27T21:04:15.195Z"
+  },
+  "DS-6Y4D-ES4K-J6VM": {
+    "plan": "15d",
+    "durationDays": 15,
+    "createdAt": "2025-12-27T22:58:26.749Z",
+    "createdBy": "1393663170840887307",
+    "used": true,
+    "usedByGuildId": "1454607274512220343",
+    "usedAt": "2025-12-27T22:58:40.354Z"
+  },
+  "DS-N4NU-2JGZ-VX96": {
+    "plan": "15d",
+    "durationDays": 15,
+    "createdAt": "2025-12-27T22:58:48.077Z",
+    "createdBy": "1393663170840887307",
+    "used": true,
+    "usedByGuildId": "1445123206855000216",
+    "usedAt": "2025-12-27T23:02:10.201Z"
+  },
+  "DS-VC9K-PP24-GSSR": {
+    "plan": "custom",
+    "durationDays": 10,
+    "createdAt": "2025-12-30T20:29:40.727Z",
+    "createdBy": "1393663170840887307",
+    "used": true,
+    "usedByGuildId": "1446151351288725577",
+    "usedAt": "2025-12-30T21:02:59.516Z"
+  },
+  "DS-8GZF-DDDR-7MDV": {
+    "plan": "3m",
+    "durationDays": 90,
+    "createdAt": "2026-01-12T19:53:35.061Z",
+    "createdBy": "1393663170840887307",
+    "used": true,
+    "usedByGuildId": "1454607274512220343",
+    "usedAt": "2026-01-12T19:53:58.659Z"
+  },
+  "DS-KFMU-T4BU-RR2D": {
+    "plan": "custom",
+    "durationMs": 30000,
+    "durationDays": 1,
+    "durationLabel": "30s",
+    "createdAt": "2026-01-12T21:21:20.571Z",
+    "createdBy": "1393663170840887307",
+    "used": false,
+    "usedByGuildId": null,
+    "usedAt": null
+  },
+  "DS-N3ZS-BPEJ-RQ7L": {
+    "plan": "custom",
+    "durationMs": 31536000000,
+    "durationDays": 365,
+    "durationLabel": "1y",
+    "createdAt": "2026-01-16T15:34:16.195Z",
+    "createdBy": "1393663170840887307",
+    "used": true,
+    "usedByGuildId": "1439446842038288436",
+    "usedAt": "2026-01-16T15:34:35.156Z"
+  }
+}
