@@ -216,22 +216,6 @@ function isBotOwner(userId){
   return OWNER_IDS.includes(String(userId));
 }
 
-// Full access helper
-// Bot owners should be treated like server owner/admin for ALL commands.
-function hasFullAccess(member){
-  if (!member || !member.guild) return false;
-  if (isBotOwner(member.id)) return true;
-  if (member.guild.ownerId === member.id) return true;
-
-  // Discord.js v14 permission checks
-  try {
-    if (member.permissions?.has?.("Administrator")) return true;
-    if (member.permissions?.has?.("ManageGuild")) return true;
-  } catch {}
-
-  return false;
-}
-
 function planToDays(plan){
   const p = String(plan || "").toLowerCase();
   if (p === "15d" || p === "15days" || p === "15") return { plan:"15d", days:15 };
@@ -332,6 +316,30 @@ function getPremiumState(guildId){
       accent: (typeof branding.accent === "string") ? branding.accent : null
     },
     features: {
+      // Ticket ping settings (Premium): per ticket type.
+      // This replaces the old pingMode/pingRoleId/pingRoleIds so you don't have 2 duplicate systems.
+      // Values:
+      //  - roles: array of role IDs to mention
+      //  - here: mention @here
+      //  - everyone: mention @everyone
+      ticketPings: {
+        support: {
+          roles: Array.isArray(features?.ticketPings?.support?.roles)
+            ? features.ticketPings.support.roles.filter(isValidSnowflake)
+            : [],
+          here: !!features?.ticketPings?.support?.here,
+          everyone: !!features?.ticketPings?.support?.everyone,
+        },
+        trade: {
+          roles: Array.isArray(features?.ticketPings?.trade?.roles)
+            ? features.ticketPings.trade.roles.filter(isValidSnowflake)
+            : [],
+          here: !!features?.ticketPings?.trade?.here,
+          everyone: !!features?.ticketPings?.trade?.everyone,
+        }
+      },
+
+      // Legacy (kept for backwards compatibility; no longer used by ticket creation)
       pingMode: (typeof features.pingMode === "string") ? features.pingMode : "here", // off | here | role
       pingRoleId: (typeof features.pingRoleId === "string") ? features.pingRoleId : null,
       pingRoleIds: Array.isArray(features.pingRoleIds) ? features.pingRoleIds.filter(isValidSnowflake) : [],
@@ -415,13 +423,26 @@ function requirePremium(message){
   return { ok:true, p };
 }
 
-function renderPremiumMention(guildId){
+function uniq(arr){
+  return Array.from(new Set(arr.filter(Boolean)));
+}
+
+function renderTicketPingMention(guildId, ticketType){
+  // ticketType: "support" | "trade"
   const p = getPremiumState(guildId);
   if (!p.isPremium) return "@here";
-  const mode = p.features.pingMode || "here";
-  if (mode === "off") return "";
-  if (mode === "role" && p.features.pingRoleId) return `<@&${p.features.pingRoleId}>`;
-  return "@here";
+
+  const t = (String(ticketType || "").toLowerCase() === "trade") ? "trade" : "support";
+  const cfg = p.features.ticketPings?.[t] || { roles:[], here:false, everyone:false };
+
+  const parts = [];
+  if (cfg.everyone) parts.push("@everyone");
+  if (cfg.here) parts.push("@here");
+  if (Array.isArray(cfg.roles)) parts.push(...cfg.roles.map(id => `<@&${id}>`));
+
+  // If user set nothing, default to @here
+  const out = uniq(parts).join(" ");
+  return out || "@here";
 }
 
 async function sendTranscriptIfEnabled(channel, closedByTag, reason){
@@ -622,12 +643,15 @@ async function ensureDefaultSetup(guild, needs = { support: false, trade: false,
 function isOwnerOrAdmin(message) {
   try {
     if (!message.guild) return false;
+  // ✅ Bot owner can use owner/admin commands too
+  if (isBotOwner(message.author.id)) return true;
+    const cfg = getGuildConfig(message.guild.id);
+    const ownerId = message.guild.ownerId;
+    if (message.author.id === ownerId) return true;
+    const adminRoles = Array.isArray(cfg.adminRoles) ? cfg.adminRoles : [];
     const member = message.member;
-    // BOT OWNER / SERVER OWNER / ADMIN perms
-    if (hasFullAccess(member)) return true;
-    // Configured admin roles (per-server)
-    if (isAdmin(member)) return true;
-    return false;
+    if (!member || !member.roles) return false;
+    return adminRoles.some(rid => member.roles.cache.has(rid));
   } catch {
     return false;
   }
@@ -786,8 +810,6 @@ function parseTopic(topic) {
 
 // role helpers
 function isAdmin(member) {
-  // Bot owners / server owners / perms should count as admin everywhere
-  if (hasFullAccess(member)) return true;
   const cfg = getGuildConfig(member.guild.id);
   const list = Array.isArray(cfg.adminRoles) ? cfg.adminRoles : [];
   return member.roles.cache.some(r => list.includes(r.id));
@@ -826,9 +848,11 @@ function canManageTicket(member, channel) {
 
 
 function canUseSetup(member){
-  if (!member || !member.guild) return false;
-  // ✅ Bot owners / server owners / admins (perms) / configured admin roles
-  if (hasFullAccess(member)) return true;
+    // ✅ Bot owner can use setup in any server
+  if (isBotOwner(member.id)) return true;
+
+if (!member || !member.guild) return false;
+  if (member.guild.ownerId === member.id) return true;
   return isAdmin(member);
 }
 
@@ -1187,7 +1211,6 @@ function buildPremiumCommandsPayload(guild, openerId){
     .addFields(
       { name: "Auto Tag Claims", value: f.autoTagClaims ? "✅ On" : "❌ Off", inline: true },
       { name: "Priority Support", value: f.prioritySupport ? "✅ On" : "❌ Off", inline: true },
-      { name: "Ping Roles", value: (Array.isArray(f.pingRoleIds) && f.pingRoleIds.length) ? f.pingRoleIds.map(id => `<@&${id}>`).join(", ") : "—", inline: false },
       { name: "Close Reasons", value: (Array.isArray(f.customCloseReasons) && f.customCloseReasons.length)
           ? f.customCloseReasons.map((r,i)=>`**${i+1}.** ${String(r).slice(0,80)}`).join("\n")
           : "—", inline: false }
@@ -1201,19 +1224,13 @@ function buildPremiumCommandsPayload(guild, openerId){
     new ButtonBuilder().setCustomId(`premcmd_toggle_priority:${openerId}`).setLabel(f.prioritySupport ? "🚀 Priority: ON" : "🚀 Priority: OFF").setStyle(f.prioritySupport ? ButtonStyle.Success : ButtonStyle.Secondary)
   );
 
-  const rowB = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`premcmd_ping_add:${openerId}`).setLabel("➕ Add Ping Role").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`premcmd_ping_remove:${openerId}`).setLabel("➖ Remove Ping Role").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`premcmd_ping_clear:${openerId}`).setLabel("🧹 Clear Ping Roles").setStyle(ButtonStyle.Danger)
-  );
-
   const rowC = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`premcmd_reason_add:${openerId}`).setLabel("➕ Add Close Reason").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`premcmd_reason_remove:${openerId}`).setLabel("➖ Remove Reason").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`premcmd_refresh:${openerId}`).setLabel("🔄 Refresh").setStyle(ButtonStyle.Success)
   );
 
-  return { embeds:[embed], components:[rowA,rowB,rowC] };
+  return { embeds:[embed], components:[rowA,rowC] };
 }
 
 
@@ -1255,8 +1272,8 @@ client.on("messageCreate", async message => {
   if (content === "?psetup" || content === "?premium-setup" || content === "?setup-premium") {
     if (!message.guild) return;
     const ownerId = message.guild.ownerId;
-    if (!hasFullAccess(message.member) && !canUseSetup(message.member)) {
-      return message.reply("⛔ Only the **server owner / admins / bot owners** can use premium setup.").catch(() => {});
+    if (message.author.id !== ownerId) {
+      return message.reply("⛔ Only the **server owner** can use premium setup.").catch(() => {});
     }
 
     const prem = getPremiumState(message.guild.id);
@@ -1288,8 +1305,9 @@ if (content === "?premium") {
 // ?premium-help (server owner) -> shows premium-only commands (only when Premium is active)
 if (content === "?premium-help") {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member) && !canUseSetup(message.member)) {
-    return message.reply("⛔ Only the **server owner / admins / bot owners** can use `?premium-help`.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can use `?premium-help`.").catch(() => {});
   }
 
   const p = getPremiumState(message.guild.id);
@@ -1341,8 +1359,9 @@ if (content === "?premium-help") {
 // ?premium-redeem <key>
 if (content.startsWith("?premium-redeem")) {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only the **server owner / admins / bot owners** can redeem premium.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can redeem premium.").catch(() => {});
   }
 
   const parts = content.split(/\s+/).filter(Boolean);
@@ -1470,8 +1489,9 @@ if (content.startsWith("?premium-gen")) {
 // ?brandname <text>
 if (content.startsWith("?brandname ") || content.startsWith("?premium-name ") || content.startsWith("?displayname ")) {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only **server owner / admins / bot owners** can change branding.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can change branding.").catch(() => {});
   }
   const p = getPremiumState(message.guild.id);
   if (!p.isPremium) {
@@ -1486,8 +1506,9 @@ if (content.startsWith("?brandname ") || content.startsWith("?premium-name ") ||
 // ?brandicon <url>
 if (content.startsWith("?brandicon ") || content.startsWith("?premium-icon ")) {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only **server owner / admins / bot owners** can change branding.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can change branding.").catch(() => {});
   }
   const p = getPremiumState(message.guild.id);
   if (!p.isPremium) {
@@ -1505,8 +1526,9 @@ if (content.startsWith("?brandicon ") || content.startsWith("?premium-icon ")) {
 // ?botnick reset
 if (content.startsWith("?botnick ")) {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only **server owner / admins / bot owners** can change the bot nickname.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can change the bot nickname.").catch(() => {});
   }
   const p = getPremiumState(message.guild.id);
   if (!p.isPremium) {
@@ -1532,8 +1554,9 @@ if (content.startsWith("?botnick ")) {
 // ?accent <hex> (example: ?accent #6d5cff)
 if (content.startsWith("?accent ")) {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only **server owner / admins / bot owners** can change branding.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can change branding.").catch(() => {});
   }
   const p = getPremiumState(message.guild.id);
   if (!p.isPremium) {
@@ -1548,8 +1571,9 @@ if (content.startsWith("?accent ")) {
 // ?premium-features (server owner) — show current premium settings
 if (content === "?premium-features") {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only **server owner / admins / bot owners** can view premium settings.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can view premium settings.").catch(() => {});
   }
   const txt = getPremiumFeaturesText(message.guild.id);
   return message.reply(`📌 **Premium Settings**\n${txt}`).catch(() => {});
@@ -1559,8 +1583,9 @@ if (content === "?premium-features") {
 // ?pingmode here|role|off
 if (content.startsWith("?pingmode ")) {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -1575,8 +1600,9 @@ if (content.startsWith("?pingmode ")) {
 // ?pingrole <roleId or @Role> (only used when pingmode=role)
 if (content.startsWith("?pingrole ")) {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -1593,8 +1619,9 @@ if (content.startsWith("?pingrole ")) {
 // ?autoclose <minutes>  (0/off disables)
 if (content.startsWith("?autoclose ")) {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -1613,8 +1640,9 @@ if (content.startsWith("?autoclose ")) {
 // ?transcripts on|off
 if (content.startsWith("?transcripts ")) {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -1627,8 +1655,9 @@ if (content.startsWith("?transcripts ")) {
 // ?transcript-channel <channelId or #channel or off>
 if (content.startsWith("?transcript-channel ")) {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -1650,8 +1679,9 @@ if (content.startsWith("?transcript-channel ")) {
 // ?welcome off
 if (content.startsWith("?welcome ")) {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -1671,8 +1701,9 @@ if (content.startsWith("?welcome ")) {
 // ?ticketname reset
 if (content.startsWith("?ticketname ")) {
   if (!message.guild) return;
-  if (!hasFullAccess(message.member)) {
-    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
+  const ownerId = message.guild.ownerId;
+  if (message.author.id !== ownerId) {
+    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -2039,7 +2070,9 @@ After activation, open a ticket and you will see the premium ping/name features 
   // PREMIUM CONTROL PANEL — buttons + modals (locked to panel opener)
   // ==================================================
   if (interaction.isButton() && interaction.customId && interaction.customId.startsWith("prem_")) {
-    const [action, openerId] = interaction.customId.split(":");
+    const parts = interaction.customId.split(":");
+    const action = parts[0];
+    const openerId = parts[parts.length - 1];
     if (!interaction.guild) return safeUpdate(interaction, { content: "Guild only.", ephemeral: true });
     if (interaction.user.id !== openerId) {
       return safeUpdate(interaction, { content: "⛔ Only the person who opened this Premium Panel can use it.", ephemeral: true });
@@ -2047,50 +2080,10 @@ After activation, open a ticket and you will see the premium ping/name features 
 
     const prem = getPremiumState(interaction.guild.id);
 
-    // Premium Commands submenu
+    // Premium Commands submenu (single working tab; pings are configured from the dedicated "Pings" page)
     if (action === "prem_cmds") {
-      const p = getPremiumState(interaction.guild.id);
-      const f = p.features;
-
-      const embed = new EmbedBuilder()
-        .setTitle("✨ Premium Commands")
-        .setColor(p.branding.accent || "#f1c40f")
-        .setDescription(
-          "Configure premium features with buttons.\n" +
-          "These settings apply to **this server**."
-        )
-        .addFields(
-          { name: "Auto Tag Claims", value: f.autoTagClaims ? "✅ On" : "❌ Off", inline: true },
-          { name: "Priority Support", value: f.prioritySupport ? "✅ On" : "❌ Off", inline: true },
-          { name: "Ping Roles", value: (Array.isArray(f.pingRoleIds) && f.pingRoleIds.length)
-              ? f.pingRoleIds.map(id => `<@&${id}>`).join(", ")
-              : "—", inline: false },
-          { name: "Close Reasons", value: (Array.isArray(f.customCloseReasons) && f.customCloseReasons.length)
-              ? f.customCloseReasons.map((r,i)=>`**${i+1}.** ${String(r).slice(0,80)}`).join("\n")
-              : "—", inline: false }
-        )
-        .setFooter({ text: "Premium • Locked to you" });
-
-      applyBranding(embed, interaction.guild.id);
-
-      const rowA = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`premcmd_toggle_claim:${openerId}`).setLabel(f.autoTagClaims ? "🏷️ Claim Tag: ON" : "🏷️ Claim Tag: OFF").setStyle(f.autoTagClaims ? ButtonStyle.Success : ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`premcmd_toggle_priority:${openerId}`).setLabel(f.prioritySupport ? "🚀 Priority: ON" : "🚀 Priority: OFF").setStyle(f.prioritySupport ? ButtonStyle.Success : ButtonStyle.Secondary)
-      );
-
-      const rowB = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`premcmd_ping_add:${openerId}`).setLabel("➕ Add Ping Role").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`premcmd_ping_remove:${openerId}`).setLabel("➖ Remove Ping Role").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`premcmd_ping_clear:${openerId}`).setLabel("🧹 Clear Ping Roles").setStyle(ButtonStyle.Danger)
-      );
-
-      const rowC = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`premcmd_reason_add:${openerId}`).setLabel("➕ Add Close Reason").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`premcmd_reason_remove:${openerId}`).setLabel("➖ Remove Reason").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`premcmd_refresh:${openerId}`).setLabel("🔄 Refresh").setStyle(ButtonStyle.Success)
-      );
-
-      return safeUpdate(interaction, { embeds: [embed], components: [rowA, rowB, rowC], ephemeral: true }).catch(() => {});
+      const payload = buildPremiumCommandsPayload(interaction.guild, openerId);
+      return safeUpdate(interaction, { ...payload, ephemeral: true }).catch(() => {});
     }
 
 
@@ -2216,24 +2209,73 @@ After activation, open a ticket and you will see the premium ping/name features 
     }
 
     if (action === "prem_pings") {
-      const f = prem.features;
+      const s = prem.features.ticketPings?.support || { roles:[], here:false, everyone:false };
+      const t = prem.features.ticketPings?.trade || { roles:[], here:false, everyone:false };
+
+      const fmt = (cfg) => {
+        const parts = [];
+        if (cfg.everyone) parts.push("@everyone");
+        if (cfg.here) parts.push("@here");
+        if (Array.isArray(cfg.roles) && cfg.roles.length) parts.push(...cfg.roles.map(id => `<@&${id}>`));
+        return parts.length ? uniq(parts).join(" ") : "(default: @here)";
+      };
+
       const embed = new EmbedBuilder()
-        .setTitle("📣 Premium Pings")
+        .setTitle("📣 Premium Ticket Pings")
         .setDescription(
-          "Choose how the bot pings staff when a ticket is opened.\n\n" +
-          `Current: **${f.pingMode || "here"}**` + (f.pingRoleId ? ` • <@&${f.pingRoleId}>` : "")
+          "Choose what the bot pings when a ticket is opened.\n" +
+          "You can select **multiple roles** and also enable **@here / @everyone**.\n\n" +
+          `**Support:** ${fmt(s)}\n` +
+          `**Trade/MM:** ${fmt(t)}`
         )
         .setColor(prem.branding.accent || "#f1c40f");
 
       const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`prem_ping_toggle:${openerId}`).setLabel("🔁 Toggle Mode").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`prem_ping_role:${openerId}`).setLabel("🎯 Set Role").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`prem_ping_clear:${openerId}`).setLabel("🧹 Clear Role").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`prem_back:${openerId}`).setLabel("⬅️ Back").setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId(`prem_ping_cfg_support:${openerId}`).setLabel("🛠️ Configure Support").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`prem_ping_cfg_trade:${openerId}`).setLabel("🤝 Configure Trade/MM").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`prem_back:${openerId}`).setLabel("⬅️ Back").setStyle(ButtonStyle.Secondary)
       );
 
       applyBranding(embed, interaction.guild.id);
       return safeUpdate(interaction, { embeds: [embed], components: [row] }).catch(() => {});
+    }
+
+    // Configure Support pings
+    if (action === "prem_ping_cfg_support" || action === "prem_ping_cfg_trade") {
+      const which = action === "prem_ping_cfg_trade" ? "trade" : "support";
+      const cfg = prem.features.ticketPings?.[which] || { roles:[], here:false, everyone:false };
+
+      const embed = new EmbedBuilder()
+        .setTitle(which === "trade" ? "🤝 Trade/MM Pings" : "🛠️ Support Pings")
+        .setDescription(
+          "Select roles to ping (multi-select), and optionally toggle @here / @everyone.\n" +
+          "If you select nothing, the bot will default to **@here**."
+        )
+        .setColor(prem.branding.accent || "#f1c40f")
+        .addFields(
+          { name: "@here", value: cfg.here ? "✅ On" : "❌ Off", inline: true },
+          { name: "@everyone", value: cfg.everyone ? "✅ On" : "❌ Off", inline: true },
+          { name: "Roles", value: (Array.isArray(cfg.roles) && cfg.roles.length) ? cfg.roles.map(id => `<@&${id}>`).join(", ") : "—", inline: false }
+        );
+
+      applyBranding(embed, interaction.guild.id);
+
+      const roleRow = new ActionRowBuilder().addComponents(
+        new RoleSelectMenuBuilder()
+          .setCustomId(`prem_ping_roles:${which}:${openerId}`)
+          .setPlaceholder("Select roles to ping…")
+          .setMinValues(0)
+          .setMaxValues(25)
+      );
+
+      const btnRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`prem_ping_toggle_here:${which}:${openerId}`).setLabel(cfg.here ? "@here: ON" : "@here: OFF").setStyle(cfg.here ? ButtonStyle.Success : ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`prem_ping_toggle_everyone:${which}:${openerId}`).setLabel(cfg.everyone ? "@everyone: ON" : "@everyone: OFF").setStyle(cfg.everyone ? ButtonStyle.Success : ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`prem_ping_clear_roles:${which}:${openerId}`).setLabel("🧹 Clear Roles").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`prem_pings:${openerId}`).setLabel("⬅️ Back").setStyle(ButtonStyle.Secondary)
+      );
+
+      return safeUpdate(interaction, { embeds: [embed], components: [roleRow, btnRow] }).catch(() => {});
     }
 
     if (action === "prem_transcripts") {
@@ -2275,34 +2317,113 @@ After activation, open a ticket and you will see the premium ping/name features 
       return safeUpdate(interaction, { ...buildPremiumPanelPayload(interaction.guild, openerId), components: [row] }).catch(() => {});
     }
 
-    if (action === "prem_ping_toggle") {
-      const mode = (prem.features.pingMode || "here").toLowerCase();
-      const next = mode === "off" ? "here" : (mode === "here" ? "role" : (mode === "role" ? "off" : "here"));
-      savePremiumState(interaction.guild.id, { features: { pingMode: next } });
-      return safeUpdate(interaction, buildPremiumPanelPayload(interaction.guild, openerId)).catch(() => {});
+    // Ping toggles / clear (new ticketPings system)
+    if (action === "prem_ping_toggle_here" || action === "prem_ping_toggle_everyone" || action === "prem_ping_clear_roles") {
+      const which = parts[1] === "trade" ? "trade" : "support";
+      const cur = prem.features.ticketPings?.[which] || { roles:[], here:false, everyone:false };
+
+      if (action === "prem_ping_toggle_here") {
+        savePremiumState(interaction.guild.id, { features: { ticketPings: { ...(prem.features.ticketPings || {}), [which]: { ...cur, here: !cur.here } } } });
+      }
+      if (action === "prem_ping_toggle_everyone") {
+        savePremiumState(interaction.guild.id, { features: { ticketPings: { ...(prem.features.ticketPings || {}), [which]: { ...cur, everyone: !cur.everyone } } } });
+      }
+      if (action === "prem_ping_clear_roles") {
+        savePremiumState(interaction.guild.id, { features: { ticketPings: { ...(prem.features.ticketPings || {}), [which]: { ...cur, roles: [] } } } });
+      }
+
+      // Re-render the same config page
+      const rerender = which === "trade" ? "prem_ping_cfg_trade" : "prem_ping_cfg_support";
+      const fake = { ...interaction, customId: `${rerender}:${openerId}` };
+      // easiest: just call the handler by updating the message with the config UI
+      const newPrem = getPremiumState(interaction.guild.id);
+      const cfg = newPrem.features.ticketPings?.[which] || { roles:[], here:false, everyone:false };
+      const embed = new EmbedBuilder()
+        .setTitle(which === "trade" ? "🤝 Trade/MM Pings" : "🛠️ Support Pings")
+        .setDescription(
+          "Select roles to ping (multi-select), and optionally toggle @here / @everyone.\n" +
+          "If you select nothing, the bot will default to **@here**."
+        )
+        .setColor(newPrem.branding.accent || "#f1c40f")
+        .addFields(
+          { name: "@here", value: cfg.here ? "✅ On" : "❌ Off", inline: true },
+          { name: "@everyone", value: cfg.everyone ? "✅ On" : "❌ Off", inline: true },
+          { name: "Roles", value: (Array.isArray(cfg.roles) && cfg.roles.length) ? cfg.roles.map(id => `<@&${id}>`).join(", ") : "—", inline: false }
+        );
+      applyBranding(embed, interaction.guild.id);
+
+      const roleRow = new ActionRowBuilder().addComponents(
+        new RoleSelectMenuBuilder()
+          .setCustomId(`prem_ping_roles:${which}:${openerId}`)
+          .setPlaceholder("Select roles to ping…")
+          .setMinValues(0)
+          .setMaxValues(25)
+      );
+      const btnRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`prem_ping_toggle_here:${which}:${openerId}`).setLabel(cfg.here ? "@here: ON" : "@here: OFF").setStyle(cfg.here ? ButtonStyle.Success : ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`prem_ping_toggle_everyone:${which}:${openerId}`).setLabel(cfg.everyone ? "@everyone: ON" : "@everyone: OFF").setStyle(cfg.everyone ? ButtonStyle.Success : ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`prem_ping_clear_roles:${which}:${openerId}`).setLabel("🧹 Clear Roles").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`prem_pings:${openerId}`).setLabel("⬅️ Back").setStyle(ButtonStyle.Secondary)
+      );
+      return safeUpdate(interaction, { embeds: [embed], components: [roleRow, btnRow] }).catch(() => {});
+    }
+  }
+
+  // Premium ping role picker (RoleSelectMenu)
+  if (interaction.isRoleSelectMenu() && interaction.customId && interaction.customId.startsWith("prem_ping_roles:")) {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferUpdate().catch(() => {});
     }
 
-    if (action === "prem_ping_role") {
-      const modal = new ModalBuilder()
-        .setCustomId(`prem_modal_pingrole:${openerId}`)
-        .setTitle("Ping Role");
+    const parts = interaction.customId.split(":");
+    const which = parts[1] === "trade" ? "trade" : "support";
+    const openerId = parts[2];
 
-      const input = new TextInputBuilder()
-        .setCustomId("role")
-        .setLabel("Role ID or @Role (optional)")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(false)
-        .setMaxLength(64)
-        .setValue(prem.features.pingRoleId ? String(prem.features.pingRoleId) : "");
+    if (!interaction.guild) return safeUpdate(interaction, { content: "Guild only.", ephemeral: true });
+    if (interaction.user.id !== openerId) return safeUpdate(interaction, { content: "⛔ Not your panel.", ephemeral: true });
 
-      modal.addComponents(new ActionRowBuilder().addComponents(input));
-      return interaction.showModal(modal).catch(() => {});
-    }
+    const prem = getPremiumState(interaction.guild.id);
+    if (!prem.isPremium) return safeUpdate(interaction, { content: "🔒 Premium is not active for this server.", ephemeral: true });
 
-    if (action === "prem_ping_clear") {
-      savePremiumState(interaction.guild.id, { features: { pingRoleId: null } });
-      return safeUpdate(interaction, buildPremiumPanelPayload(interaction.guild, openerId)).catch(() => {});
-    }
+    const picked = (interaction.values || []).filter(isValidSnowflake);
+    const cur = prem.features.ticketPings?.[which] || { roles:[], here:false, everyone:false };
+    savePremiumState(interaction.guild.id, { features: { ticketPings: { ...(prem.features.ticketPings || {}), [which]: { ...cur, roles: picked } } } });
+
+    // Re-render config UI
+    const newPrem = getPremiumState(interaction.guild.id);
+    const cfg = newPrem.features.ticketPings?.[which] || { roles:[], here:false, everyone:false };
+
+    const embed = new EmbedBuilder()
+      .setTitle(which === "trade" ? "🤝 Trade/MM Pings" : "🛠️ Support Pings")
+      .setDescription(
+        "Select roles to ping (multi-select), and optionally toggle @here / @everyone.\n" +
+        "If you select nothing, the bot will default to **@here**."
+      )
+      .setColor(newPrem.branding.accent || "#f1c40f")
+      .addFields(
+        { name: "@here", value: cfg.here ? "✅ On" : "❌ Off", inline: true },
+        { name: "@everyone", value: cfg.everyone ? "✅ On" : "❌ Off", inline: true },
+        { name: "Roles", value: (Array.isArray(cfg.roles) && cfg.roles.length) ? cfg.roles.map(id => `<@&${id}>`).join(", ") : "—", inline: false }
+      );
+
+    applyBranding(embed, interaction.guild.id);
+
+    const roleRow = new ActionRowBuilder().addComponents(
+      new RoleSelectMenuBuilder()
+        .setCustomId(`prem_ping_roles:${which}:${openerId}`)
+        .setPlaceholder("Select roles to ping…")
+        .setMinValues(0)
+        .setMaxValues(25)
+    );
+
+    const btnRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`prem_ping_toggle_here:${which}:${openerId}`).setLabel(cfg.here ? "@here: ON" : "@here: OFF").setStyle(cfg.here ? ButtonStyle.Success : ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`prem_ping_toggle_everyone:${which}:${openerId}`).setLabel(cfg.everyone ? "@everyone: ON" : "@everyone: OFF").setStyle(cfg.everyone ? ButtonStyle.Success : ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`prem_ping_clear_roles:${which}:${openerId}`).setLabel("🧹 Clear Roles").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`prem_pings:${openerId}`).setLabel("⬅️ Back").setStyle(ButtonStyle.Secondary)
+    );
+
+    return safeUpdate(interaction, { embeds: [embed], components: [roleRow, btnRow] }).catch(() => {});
   }
 
   // Transcript channel select
@@ -3193,7 +3314,7 @@ const categoryId = type === "Support" ? cfg.supportCategoryId : cfg.mmCategoryId
           .setStyle(ButtonStyle.Secondary)
       );
 
-      const mention = renderPremiumMention(guild.id);
+      const mention = renderTicketPingMention(guild.id, type === "Support" ? "support" : "trade");
       if (mention) await channel.send(mention).catch(() => {});
       applyBranding(embed, guild.id);
       await channel.send({ embeds: [embed], components: [row] });
