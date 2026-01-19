@@ -216,6 +216,22 @@ function isBotOwner(userId){
   return OWNER_IDS.includes(String(userId));
 }
 
+// Full access helper
+// Bot owners should be treated like server owner/admin for ALL commands.
+function hasFullAccess(member){
+  if (!member || !member.guild) return false;
+  if (isBotOwner(member.id)) return true;
+  if (member.guild.ownerId === member.id) return true;
+
+  // Discord.js v14 permission checks
+  try {
+    if (member.permissions?.has?.("Administrator")) return true;
+    if (member.permissions?.has?.("ManageGuild")) return true;
+  } catch {}
+
+  return false;
+}
+
 function planToDays(plan){
   const p = String(plan || "").toLowerCase();
   if (p === "15d" || p === "15days" || p === "15") return { plan:"15d", days:15 };
@@ -606,15 +622,12 @@ async function ensureDefaultSetup(guild, needs = { support: false, trade: false,
 function isOwnerOrAdmin(message) {
   try {
     if (!message.guild) return false;
-  // ✅ Bot owner can use owner/admin commands too
-  if (isBotOwner(message.author.id)) return true;
-    const cfg = getGuildConfig(message.guild.id);
-    const ownerId = message.guild.ownerId;
-    if (message.author.id === ownerId) return true;
-    const adminRoles = Array.isArray(cfg.adminRoles) ? cfg.adminRoles : [];
     const member = message.member;
-    if (!member || !member.roles) return false;
-    return adminRoles.some(rid => member.roles.cache.has(rid));
+    // BOT OWNER / SERVER OWNER / ADMIN perms
+    if (hasFullAccess(member)) return true;
+    // Configured admin roles (per-server)
+    if (isAdmin(member)) return true;
+    return false;
   } catch {
     return false;
   }
@@ -773,6 +786,8 @@ function parseTopic(topic) {
 
 // role helpers
 function isAdmin(member) {
+  // Bot owners / server owners / perms should count as admin everywhere
+  if (hasFullAccess(member)) return true;
   const cfg = getGuildConfig(member.guild.id);
   const list = Array.isArray(cfg.adminRoles) ? cfg.adminRoles : [];
   return member.roles.cache.some(r => list.includes(r.id));
@@ -811,22 +826,9 @@ function canManageTicket(member, channel) {
 
 
 function canUseSetup(member){
-  // ✅ Bot owner can use setup in any server
-  if (member?.id && isBotOwner(member.id)) return true;
-
   if (!member || !member.guild) return false;
-
-  // ✅ Server owner can always configure
-  if (member.guild.ownerId === member.id) return true;
-
-  // ✅ Allow real Discord server admins even before you set "Admin Roles" in the bot
-  // (Fixes the chicken/egg problem where no one can open ?setup on a fresh server)
-  try {
-    if (member.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
-    if (member.permissions?.has?.(PermissionFlagsBits.ManageGuild)) return true;
-  } catch {}
-
-  // ✅ Bot-configured admin roles (set inside ?setup)
+  // ✅ Bot owners / server owners / admins (perms) / configured admin roles
+  if (hasFullAccess(member)) return true;
   return isAdmin(member);
 }
 
@@ -1249,11 +1251,12 @@ client.on("messageCreate", async message => {
 
 
 
-  // Premium setup shortcut (Admin/Owner/Bot owner)
+  // Premium setup shortcut (owner-only)
   if (content === "?psetup" || content === "?premium-setup" || content === "?setup-premium") {
     if (!message.guild) return;
-    if (!canUseSetup(message.member)) {
-      return message.reply("⛔ You must be the **Server Owner**, have **Administrator/Manage Server**, or be in **Admin Roles** to use premium setup.").catch(() => {});
+    const ownerId = message.guild.ownerId;
+    if (!hasFullAccess(message.member) && !canUseSetup(message.member)) {
+      return message.reply("⛔ Only the **server owner / admins / bot owners** can use premium setup.").catch(() => {});
     }
 
     const prem = getPremiumState(message.guild.id);
@@ -1261,7 +1264,7 @@ client.on("messageCreate", async message => {
       return message.reply("🔒 Premium is not unlocked for this server. Use `?premium-redeem <key>` first.").catch(() => {});
     }
 
-    const payload = buildPremiumSetupPayload(message.guild, message.author.id);
+    const payload = buildPremiumSetupPayload(message.guild, ownerId);
     return message.reply(payload).catch(() => {});
   }
 
@@ -1282,11 +1285,11 @@ if (content === "?premium") {
   return message.reply(buildPremiumPanelPayload(message.guild, openerId)).catch(() => {});
 }
 
-// ?premium-help (Admin/Owner/Bot owner) -> shows premium-only commands (only when Premium is active)
+// ?premium-help (server owner) -> shows premium-only commands (only when Premium is active)
 if (content === "?premium-help") {
   if (!message.guild) return;
-  if (!canUseSetup(message.member)) {
-    return message.reply("⛔ You must be the **Server Owner**, have **Administrator/Manage Server**, or be in **Admin Roles** to use `?premium-help`." ).catch(() => {});
+  if (!hasFullAccess(message.member) && !canUseSetup(message.member)) {
+    return message.reply("⛔ Only the **server owner / admins / bot owners** can use `?premium-help`.").catch(() => {});
   }
 
   const p = getPremiumState(message.guild.id);
@@ -1338,9 +1341,8 @@ if (content === "?premium-help") {
 // ?premium-redeem <key>
 if (content.startsWith("?premium-redeem")) {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can redeem premium.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only the **server owner / admins / bot owners** can redeem premium.").catch(() => {});
   }
 
   const parts = content.split(/\s+/).filter(Boolean);
@@ -1468,9 +1470,8 @@ if (content.startsWith("?premium-gen")) {
 // ?brandname <text>
 if (content.startsWith("?brandname ") || content.startsWith("?premium-name ") || content.startsWith("?displayname ")) {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can change branding.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only **server owner / admins / bot owners** can change branding.").catch(() => {});
   }
   const p = getPremiumState(message.guild.id);
   if (!p.isPremium) {
@@ -1485,9 +1486,8 @@ if (content.startsWith("?brandname ") || content.startsWith("?premium-name ") ||
 // ?brandicon <url>
 if (content.startsWith("?brandicon ") || content.startsWith("?premium-icon ")) {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can change branding.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only **server owner / admins / bot owners** can change branding.").catch(() => {});
   }
   const p = getPremiumState(message.guild.id);
   if (!p.isPremium) {
@@ -1505,9 +1505,8 @@ if (content.startsWith("?brandicon ") || content.startsWith("?premium-icon ")) {
 // ?botnick reset
 if (content.startsWith("?botnick ")) {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can change the bot nickname.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only **server owner / admins / bot owners** can change the bot nickname.").catch(() => {});
   }
   const p = getPremiumState(message.guild.id);
   if (!p.isPremium) {
@@ -1533,9 +1532,8 @@ if (content.startsWith("?botnick ")) {
 // ?accent <hex> (example: ?accent #6d5cff)
 if (content.startsWith("?accent ")) {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can change branding.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only **server owner / admins / bot owners** can change branding.").catch(() => {});
   }
   const p = getPremiumState(message.guild.id);
   if (!p.isPremium) {
@@ -1550,9 +1548,8 @@ if (content.startsWith("?accent ")) {
 // ?premium-features (server owner) — show current premium settings
 if (content === "?premium-features") {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can view premium settings.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only **server owner / admins / bot owners** can view premium settings.").catch(() => {});
   }
   const txt = getPremiumFeaturesText(message.guild.id);
   return message.reply(`📌 **Premium Settings**\n${txt}`).catch(() => {});
@@ -1562,9 +1559,8 @@ if (content === "?premium-features") {
 // ?pingmode here|role|off
 if (content.startsWith("?pingmode ")) {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -1579,9 +1575,8 @@ if (content.startsWith("?pingmode ")) {
 // ?pingrole <roleId or @Role> (only used when pingmode=role)
 if (content.startsWith("?pingrole ")) {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -1598,9 +1593,8 @@ if (content.startsWith("?pingrole ")) {
 // ?autoclose <minutes>  (0/off disables)
 if (content.startsWith("?autoclose ")) {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -1619,9 +1613,8 @@ if (content.startsWith("?autoclose ")) {
 // ?transcripts on|off
 if (content.startsWith("?transcripts ")) {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -1634,9 +1627,8 @@ if (content.startsWith("?transcripts ")) {
 // ?transcript-channel <channelId or #channel or off>
 if (content.startsWith("?transcript-channel ")) {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -1658,9 +1650,8 @@ if (content.startsWith("?transcript-channel ")) {
 // ?welcome off
 if (content.startsWith("?welcome ")) {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
@@ -1680,9 +1671,8 @@ if (content.startsWith("?welcome ")) {
 // ?ticketname reset
 if (content.startsWith("?ticketname ")) {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can change premium settings.").catch(() => {});
+  if (!hasFullAccess(message.member)) {
+    return message.reply("⛔ Only **server owner / admins / bot owners** can change premium settings.").catch(() => {});
   }
   const req = requirePremium(message);
   if (!req.ok) return message.reply("💎 This is a **Premium** feature. Activate with `?premium-redeem <key>`.").catch(() => {});
