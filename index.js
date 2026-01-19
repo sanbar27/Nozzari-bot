@@ -811,11 +811,22 @@ function canManageTicket(member, channel) {
 
 
 function canUseSetup(member){
-    // ✅ Bot owner can use setup in any server
-  if (isBotOwner(member.id)) return true;
+  // ✅ Bot owner can use setup in any server
+  if (member?.id && isBotOwner(member.id)) return true;
 
-if (!member || !member.guild) return false;
+  if (!member || !member.guild) return false;
+
+  // ✅ Server owner can always configure
   if (member.guild.ownerId === member.id) return true;
+
+  // ✅ Allow real Discord server admins even before you set "Admin Roles" in the bot
+  // (Fixes the chicken/egg problem where no one can open ?setup on a fresh server)
+  try {
+    if (member.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
+    if (member.permissions?.has?.(PermissionFlagsBits.ManageGuild)) return true;
+  } catch {}
+
+  // ✅ Bot-configured admin roles (set inside ?setup)
   return isAdmin(member);
 }
 
@@ -1238,12 +1249,11 @@ client.on("messageCreate", async message => {
 
 
 
-  // Premium setup shortcut (owner-only)
+  // Premium setup shortcut (Admin/Owner/Bot owner)
   if (content === "?psetup" || content === "?premium-setup" || content === "?setup-premium") {
     if (!message.guild) return;
-    const ownerId = message.guild.ownerId;
-    if (message.author.id !== ownerId) {
-      return message.reply("⛔ Only the **server owner** can use premium setup.").catch(() => {});
+    if (!canUseSetup(message.member)) {
+      return message.reply("⛔ You must be the **Server Owner**, have **Administrator/Manage Server**, or be in **Admin Roles** to use premium setup.").catch(() => {});
     }
 
     const prem = getPremiumState(message.guild.id);
@@ -1251,7 +1261,7 @@ client.on("messageCreate", async message => {
       return message.reply("🔒 Premium is not unlocked for this server. Use `?premium-redeem <key>` first.").catch(() => {});
     }
 
-    const payload = buildPremiumSetupPayload(message.guild, ownerId);
+    const payload = buildPremiumSetupPayload(message.guild, message.author.id);
     return message.reply(payload).catch(() => {});
   }
 
@@ -1272,12 +1282,11 @@ if (content === "?premium") {
   return message.reply(buildPremiumPanelPayload(message.guild, openerId)).catch(() => {});
 }
 
-// ?premium-help (server owner) -> shows premium-only commands (only when Premium is active)
+// ?premium-help (Admin/Owner/Bot owner) -> shows premium-only commands (only when Premium is active)
 if (content === "?premium-help") {
   if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-  if (message.author.id !== ownerId) {
-    return message.reply("⛔ Only the **server owner** can use `?premium-help`.").catch(() => {});
+  if (!canUseSetup(message.member)) {
+    return message.reply("⛔ You must be the **Server Owner**, have **Administrator/Manage Server**, or be in **Admin Roles** to use `?premium-help`." ).catch(() => {});
   }
 
   const p = getPremiumState(message.guild.id);
