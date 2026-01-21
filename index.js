@@ -27,11 +27,15 @@ async function safeUpdate(interaction, payload) {
 
     // Message components (buttons/select menus)
     if (interaction?.isMessageComponent?.() || interaction?.isButton?.() || interaction?.isAnySelectMenu?.()) {
-      // If we haven't acknowledged yet, use update() (fastest / correct for components)
+      // If we haven't acknowledged yet, ACK immediately to avoid "Interaction failed",
+      // then edit the original message. This is more resilient than update() when
+      // permissions/embeds/components cause an update payload to be rejected.
       if (!interaction.deferred && !interaction.replied) {
-        return await interaction.update(cleanPayload);
+        try { await interaction.deferUpdate(); } catch (e) {}
+        if (interaction.editReply) return await interaction.editReply(cleanPayload);
+        if (interaction.message && interaction.message.edit) return await interaction.message.edit(cleanPayload);
+        return null;
       }
-
 
       // If the interaction was already replied (reply/deferReply), editReply() is valid.
       if (interaction.replied) {
@@ -1237,11 +1241,15 @@ function buildPremiumPanelPayload(guild, openerId){
     new ButtonBuilder().setCustomId(`prem_botnick:${openerId}`).setLabel("🤖 Bot Nick").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`prem_autoclose:${openerId}`).setLabel("⏱ Auto Close").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`prem_cmds:${openerId}`).setLabel("✨ Commands").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`prem_custombtns:${openerId}`).setLabel("🧩 Custom Buttons").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`prem_refresh:${openerId}`).setLabel("🔄 Refresh").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`prem_close:${openerId}`).setLabel("❌ Close").setStyle(ButtonStyle.Danger)
   );
 
-  return { embeds:[embed], components:[row1,row2] };
+  row3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`prem_close:${openerId}`).setLabel("❌ Close").setStyle(ButtonStyle.Danger),
+  );
+
+  return { embeds:[embed], components:[row1,row2,row3] };
 }
 
 function buildPremiumCommandsPayload(guild, openerId){
@@ -2136,6 +2144,13 @@ After activation, open a ticket and you will see the premium ping/name features 
 
     // Premium Commands submenu (single working tab; pings are configured from the dedicated "Pings" page)
     if (action === "prem_cmds") {
+      const payload = buildPremiumCommandsPayload(interaction.guild, openerId);
+      return safeUpdate(interaction, { ...payload, ephemeral: true }).catch(() => {});
+    }
+
+
+    // Separate entry for Custom Buttons (same page as Commands builder)
+    if (action === "prem_custombtns") {
       const payload = buildPremiumCommandsPayload(interaction.guild, openerId);
       return safeUpdate(interaction, { ...payload, ephemeral: true }).catch(() => {});
     }
