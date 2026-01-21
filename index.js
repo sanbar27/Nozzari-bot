@@ -14,21 +14,32 @@ const BUILD_TAG = "Nozzarri Tickets FULLFIX v6";
 // - Never call showModal() after replying/defering.
 async function safeUpdate(interaction, payload) {
   try {
+    // Discord does NOT allow `ephemeral` on update/editReply/message.edit.
+    // If we pass it, Discord rejects the request and users see "Interaction failed".
+    // Keep `ephemeral` only for the initial reply() flow.
+    const cleanPayload = (() => {
+      if (!payload || typeof payload !== "object") return payload;
+      if (!Object.prototype.hasOwnProperty.call(payload, "ephemeral")) return payload;
+      // eslint-disable-next-line no-unused-vars
+      const { ephemeral, ...rest } = payload;
+      return rest;
+    })();
+
     // Message components (buttons/select menus)
     if (interaction?.isMessageComponent?.() || interaction?.isButton?.() || interaction?.isAnySelectMenu?.()) {
       // If we haven't acknowledged yet, use update() (fastest / correct for components)
       if (!interaction.deferred && !interaction.replied) {
-        return await interaction.update(payload);
+        return await interaction.update(cleanPayload);
       }
 
 
       // If the interaction was already replied (reply/deferReply), editReply() is valid.
       if (interaction.replied) {
-        if (interaction.editReply) return await interaction.editReply(payload);
+        if (interaction.editReply) return await interaction.editReply(cleanPayload);
       }
 
       // If it was deferUpdate()'d (common for components), edit the original message.
-      if (interaction.message && interaction.message.edit) return await interaction.message.edit(payload);
+      if (interaction.message && interaction.message.edit) return await interaction.message.edit(cleanPayload);
       return null;
     }
 
@@ -38,7 +49,7 @@ async function safeUpdate(interaction, payload) {
       return await interaction.reply({ ...payload, ephemeral: payload?.ephemeral ?? false });
     }
 
-    if (interaction?.editReply) return await interaction.editReply(payload);
+    if (interaction?.editReply) return await interaction.editReply(cleanPayload);
     return null;
   } catch (e) {
     // Expired / already handled interactions
@@ -66,7 +77,6 @@ const {
   TextInputBuilder,
   TextInputStyle,
   PermissionFlagsBits,
-  PermissionsBitField,
   ChannelType,
   ChannelSelectMenuBuilder,
   RoleSelectMenuBuilder
@@ -205,6 +215,39 @@ const PREMIUM_KEYS_FILE = path.join(DATA_DIR, "premiumKeys.json");
 let PREMIUM_GUILDS = readJsonSafe(PREMIUM_FILE, {});
 // keys state: { [key]: { createdAt: ISO, used: boolean, usedByGuildId: string|null, usedAt: ISO|null } }
 let PREMIUM_KEYS = readJsonSafe(PREMIUM_KEYS_FILE, {});
+
+// ===============================
+// Premium Custom Commands storage
+// ===============================
+const PREMIUM_CUSTOM_CMDS_FILE = path.join(DATA_DIR, "premiumCustomCommands.json");
+// structure: { [guildId]: [ { id, name, label, style, action, value, allowedRoleIds: [] } ] }
+let PREMIUM_CUSTOM_CMDS = readJsonSafe(PREMIUM_CUSTOM_CMDS_FILE, {});
+
+function getGuildCustomCmds(guildId){
+  if (!PREMIUM_CUSTOM_CMDS[guildId]) PREMIUM_CUSTOM_CMDS[guildId] = [];
+  return PREMIUM_CUSTOM_CMDS[guildId];
+}
+function saveCustomCmds(){
+  writeJsonSafe(PREMIUM_CUSTOM_CMDS_FILE, PREMIUM_CUSTOM_CMDS);
+}
+function newCmdId(){
+  return (Date.now().toString(36) + Math.random().toString(36).slice(2,8)).toLowerCase();
+}
+function normalizeStyle(s){
+  const x = String(s||"").toLowerCase().trim();
+  if (x === "primary") return ButtonStyle.Primary;
+  if (x === "secondary") return ButtonStyle.Secondary;
+  if (x === "success") return ButtonStyle.Success;
+  if (x === "danger") return ButtonStyle.Danger;
+  return ButtonStyle.Primary;
+}
+function styleName(style){
+  if (style === ButtonStyle.Primary) return "primary";
+  if (style === ButtonStyle.Secondary) return "secondary";
+  if (style === ButtonStyle.Success) return "success";
+  if (style === ButtonStyle.Danger) return "danger";
+  return "primary";
+}
 
 // Who can generate premium keys (bot owner(s))
 // Set OWNER_IDS in .env: OWNER_IDS=123,456
@@ -354,22 +397,7 @@ function getPremiumState(guildId){
       autoCloseMinutes: Number.isFinite(features.autoCloseMinutes) ? features.autoCloseMinutes : 0,
       customCloseReasons: Array.isArray(features.customCloseReasons) ? features.customCloseReasons : [],
       autoTagClaims: !!features.autoTagClaims,
-      prioritySupport: !!features.prioritySupport,
-      customCommands: Array.isArray(features.customCommands)
-        ? features.customCommands
-            .filter(c => c && typeof c.id === "string" && typeof c.label === "string")
-            .map(c => ({
-              id: String(c.id).slice(0, 32),
-              label: String(c.label).slice(0, 80),
-              description: (typeof c.description === "string") ? c.description.slice(0, 200) : "",
-              style: (typeof c.style === "string") ? String(c.style) : "primary",
-              emoji: (typeof c.emoji === "string") ? String(c.emoji).slice(0, 64) : "",
-              actionType: (typeof c.actionType === "string") ? String(c.actionType) : "message",
-              actionValue: (typeof c.actionValue === "string") ? String(c.actionValue).slice(0, 1800) : "",
-              allowedRoles: Array.isArray(c.allowedRoles) ? c.allowedRoles.filter(isValidSnowflake) : []
-            }))
-        : []
-
+      prioritySupport: !!features.prioritySupport
     }
   };
 }
@@ -1229,7 +1257,8 @@ function buildPremiumCommandsPayload(guild, openerId){
       { name: "Priority Support", value: f.prioritySupport ? "✅ On" : "❌ Off", inline: true },
       { name: "Close Reasons", value: (Array.isArray(f.customCloseReasons) && f.customCloseReasons.length)
           ? f.customCloseReasons.map((r,i)=>`**${i+1}.** ${String(r).slice(0,80)}`).join("\n")
-          : "—", inline: false }
+          : "—", inline: false },
+      { name: "Custom Buttons", value: `🧩 ${getGuildCustomCmds(guild.id).length} configured`, inline: true }
     )
     .setFooter({ text: "Premium • Locked to you" });
 
@@ -1240,134 +1269,23 @@ function buildPremiumCommandsPayload(guild, openerId){
     new ButtonBuilder().setCustomId(`premcmd_toggle_priority:${openerId}`).setLabel(f.prioritySupport ? "🚀 Priority: ON" : "🚀 Priority: OFF").setStyle(f.prioritySupport ? ButtonStyle.Success : ButtonStyle.Secondary)
   );
 
-  const rowC = new ActionRowBuilder().addComponents(
+  
+  const rowB = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`premcc_create:${openerId}`).setLabel("➕ Create Button").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`premcc_edit:${openerId}`).setLabel("✏️ Edit").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`premcc_delete:${openerId}`).setLabel("🗑 Delete").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`premcc_post:${openerId}`).setLabel("📌 Post Panel").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`prem_back:${openerId}`).setLabel("⬅️ Back").setStyle(ButtonStyle.Secondary)
+  );
+
+const rowC = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`premcmd_reason_add:${openerId}`).setLabel("➕ Add Close Reason").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`premcmd_reason_remove:${openerId}`).setLabel("➖ Remove Reason").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`premcmd_custom_open:${openerId}`).setLabel("🧩 Custom Buttons").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`premcmd_refresh:${openerId}`).setLabel("🔄 Refresh").setStyle(ButtonStyle.Success)
   );
 
-  return { embeds:[embed], components:[rowA,rowC] };
+  return { embeds:[embed], components:[rowA,rowB,rowC] };
 }
-
-// ===============================
-// Premium: Custom Commands (Buttons)
-// ===============================
-function normalizeBtnStyle(style){
-  const s = String(style || "").toLowerCase();
-  if (s === "success" || s === "green") return "success";
-  if (s === "danger" || s === "red") return "danger";
-  if (s === "secondary" || s === "grey" || s === "gray") return "secondary";
-  return "primary";
-}
-function styleToButtonStyle(style){
-  const s = normalizeBtnStyle(style);
-  if (s === "success") return ButtonStyle.Success;
-  if (s === "danger") return ButtonStyle.Danger;
-  if (s === "secondary") return ButtonStyle.Secondary;
-  return ButtonStyle.Primary;
-}
-function getCustomCommands(guildId){
-  const prem = getPremiumState(guildId);
-  return Array.isArray(prem.features.customCommands) ? prem.features.customCommands : [];
-}
-function saveCustomCommands(guildId, list){
-  savePremiumState(guildId, { features: { customCommands: Array.isArray(list) ? list : [] } });
-}
-
-function buildPremiumCustomCommandsPayload(guild, openerId){
-  const prem = getPremiumState(guild.id);
-  const cmds = getCustomCommands(guild.id);
-
-  const embed = new EmbedBuilder()
-    .setTitle("🧩 Custom Commands (Buttons)")
-    .setColor(prem.branding.accent || "#f1c40f")
-    .setDescription(
-      "Create fully custom buttons that run actions when clicked.\n" +
-      "These buttons are **Premium-only** and will auto-disable when Premium expires."
-    )
-    .addFields(
-      { name: "Total Commands", value: String(cmds.length), inline: true },
-      { name: "How it works", value: "You create buttons here, then **Post Panel** in a channel.", inline: true }
-    );
-
-  if (cmds.length){
-    const preview = cmds.slice(0, 8).map((c,i)=>{
-      const em = c.emoji ? `${c.emoji} ` : "";
-      const who = (Array.isArray(c.allowedRoles) && c.allowedRoles.length) ? `Roles: ${c.allowedRoles.map(r=>`<@&${r}>`).join(", ")}` : "Everyone";
-      return `**${i+1}.** ${em}${c.label}  •  \`${normalizeBtnStyle(c.style)}\`  •  \`${c.actionType}\`  •  ${who}`;
-    }).join("\n");
-    embed.addFields({ name: "Commands Preview", value: preview.slice(0, 1024) });
-  } else {
-    embed.addFields({ name: "Commands Preview", value: "— none yet (click **Create**)"} );
-  }
-
-  applyBranding(embed, guild.id);
-
-  const rowButtons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`premcmd_custom_create:${openerId}`).setLabel("➕ Create").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`premcmd_custom_post:${openerId}`).setLabel("📌 Post Panel").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`premcmd_custom_back:${openerId}`).setLabel("⬅ Back").setStyle(ButtonStyle.Secondary)
-  );
-
-  const editMenu = new StringSelectMenuBuilder()
-    .setCustomId(`premcmd_custom_edit_select:${openerId}`)
-    .setPlaceholder(cmds.length ? "✏️ Select a command to EDIT" : "No commands to edit")
-    .setMinValues(1)
-    .setMaxValues(1)
-    .setDisabled(!cmds.length);
-
-  const delMenu = new StringSelectMenuBuilder()
-    .setCustomId(`premcmd_custom_delete_select:${openerId}`)
-    .setPlaceholder(cmds.length ? "🗑 Select a command to DELETE" : "No commands to delete")
-    .setMinValues(1)
-    .setMaxValues(1)
-    .setDisabled(!cmds.length);
-
-  cmds.slice(0, 25).forEach(c=>{
-    const optLabel = String(c.label || "Command").slice(0, 100);
-    const desc = String(c.description || "").slice(0, 100) || `${c.actionType || "action"}`;
-    editMenu.addOptions({ label: optLabel, description: desc, value: c.id });
-    delMenu.addOptions({ label: optLabel, description: desc, value: c.id });
-  });
-
-  const rowEdit = new ActionRowBuilder().addComponents(editMenu);
-  const rowDel = new ActionRowBuilder().addComponents(delMenu);
-
-  return { embeds:[embed], components:[rowButtons, rowEdit, rowDel] };
-}
-
-function buildPostedCustomPanel(guild){
-  const prem = getPremiumState(guild.id);
-  const cmds = getCustomCommands(guild.id);
-
-  const embed = new EmbedBuilder()
-    .setTitle("⚡ Custom Commands")
-    .setColor(prem.branding.accent || "#f1c40f")
-    .setDescription("Click a button below.");
-
-  applyBranding(embed, guild.id);
-
-  const rows = [];
-  let current = new ActionRowBuilder();
-  for (const c of cmds.slice(0, 20)){
-    if (current.components.length >= 5){
-      rows.push(current);
-      current = new ActionRowBuilder();
-    }
-    const b = new ButtonBuilder()
-      .setCustomId(`custcmd:${guild.id}:${c.id}`)
-      .setLabel(String(c.label || "Command").slice(0, 80))
-      .setStyle(styleToButtonStyle(c.style));
-    if (c.emoji) {
-      try { b.setEmoji(String(c.emoji).slice(0, 64)); } catch {}
-    }
-    current.addComponents(b);
-  }
-  if (current.components.length) rows.push(current);
-  return { embeds:[embed], components: rows };
-}
-
 
 
 
@@ -2205,7 +2123,7 @@ After activation, open a ticket and you will see the premium ping/name features 
   // ==================================================
   // PREMIUM CONTROL PANEL — buttons + modals (locked to panel opener)
   // ==================================================
-  if (interaction.isButton() && interaction.customId && interaction.customId.startsWith("prem_")) {
+  if (interaction.isButton() && interaction.customId && (interaction.customId.startsWith("prem_") || interaction.customId.startsWith("premcc_"))) {
     const parts = interaction.customId.split(":");
     const action = parts[0];
     const openerId = parts[parts.length - 1];
@@ -2237,6 +2155,88 @@ After activation, open a ticket and you will see the premium ping/name features 
     // If premium is not active, block feature edits (preview only)
     if (!prem.isPremium) {
       return locked();
+    }
+
+
+    // ===============================
+    // Premium Custom Buttons (in ?premium → ✨ Commands)
+    // ===============================
+    if (action === "premcc_create") {
+      const modal = new ModalBuilder()
+        .setCustomId(`premcc_create_modal:${openerId}`)
+        .setTitle("Create Custom Button");
+
+      const f1 = new TextInputBuilder().setCustomId("label").setLabel("Button text").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(80);
+      const f2 = new TextInputBuilder().setCustomId("style").setLabel("Button color (primary/secondary/success/danger)").setStyle(TextInputStyle.Short).setRequired(true).setValue("primary").setMaxLength(16);
+      const f3 = new TextInputBuilder().setCustomId("action").setLabel("Action (addrole/removerole/message/kick/ban)").setStyle(TextInputStyle.Short).setRequired(true).setValue("addrole").setMaxLength(16);
+      const f4 = new TextInputBuilder().setCustomId("value").setLabel("Action value (roleId or message)").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000);
+      const f5 = new TextInputBuilder().setCustomId("allowed").setLabel("Who can use (role IDs, comma) - blank = everyone").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(500);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(f1),
+        new ActionRowBuilder().addComponents(f2),
+        new ActionRowBuilder().addComponents(f3),
+        new ActionRowBuilder().addComponents(f4),
+        new ActionRowBuilder().addComponents(f5),
+      );
+
+      return interaction.showModal(modal).catch(() => {});
+    }
+
+    if (action === "premcc_edit") {
+      const cmds = getGuildCustomCmds(interaction.guild.id);
+      if (!cmds.length) return safeUpdate(interaction, { content: "No custom buttons yet. Create one first.", ephemeral: true });
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId(`premcc_edit_select:${openerId}`)
+        .setPlaceholder("Select a custom button to edit")
+        .addOptions(cmds.slice(0,25).map(c => ({ label: String(c.label||c.name||c.id).slice(0,100), value: c.id })));
+      const row = new ActionRowBuilder().addComponents(menu);
+      return safeUpdate(interaction, { content: "Select a button to edit:", components: [row], embeds: [] , ephemeral: true });
+    }
+
+    if (action === "premcc_delete") {
+      const cmds = getGuildCustomCmds(interaction.guild.id);
+      if (!cmds.length) return safeUpdate(interaction, { content: "No custom buttons to delete.", ephemeral: true });
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId(`premcc_delete_select:${openerId}`)
+        .setPlaceholder("Select a custom button to delete")
+        .addOptions(cmds.slice(0,25).map(c => ({ label: String(c.label||c.name||c.id).slice(0,100), value: c.id })));
+      const row = new ActionRowBuilder().addComponents(menu);
+      return safeUpdate(interaction, { content: "Select a button to delete:", components: [row], embeds: [], ephemeral: true });
+    }
+
+    if (action === "premcc_post") {
+      const cmds = getGuildCustomCmds(interaction.guild.id);
+      if (!cmds.length) return safeUpdate(interaction, { content: "No custom buttons to post. Create one first.", ephemeral: true });
+
+      // Build buttons (max 5 per row)
+      const rows = [];
+      let current = [];
+      for (const c of cmds) {
+        const b = new ButtonBuilder()
+          .setCustomId(`custbtn:${interaction.guild.id}:${c.id}`)
+          .setLabel(String(c.label||c.name||"Button").slice(0,80))
+          .setStyle(normalizeStyle(c.style));
+        current.push(b);
+        if (current.length === 5) {
+          rows.push(new ActionRowBuilder().addComponents(...current));
+          current = [];
+        }
+      }
+      if (current.length) rows.push(new ActionRowBuilder().addComponents(...current));
+
+      const embed = new EmbedBuilder()
+        .setTitle("🧩 Custom Commands")
+        .setDescription("Click a button below.")
+        .setColor(prem.branding.accent || "#5865F2");
+
+      try {
+        await interaction.channel.send({ embeds: [embed], components: rows });
+      } catch (e) {
+        return safeUpdate(interaction, { content: "❌ I couldn't post in this channel (missing permissions).", ephemeral: true });
+      }
+
+      return safeUpdate(interaction, { content: "✅ Posted the custom commands panel in this channel.", ephemeral: true });
     }
 
     if (action === "prem_ticketname") {
@@ -2647,7 +2647,171 @@ After activation, open a ticket and you will see the premium ping/name features 
   }
 
 
+  
   // ==================================================
+  // PREMIUM CUSTOM BUTTONS: select menus + modals + runner
+  // ==================================================
+
+  // Select menus for edit/delete
+  if (interaction.isStringSelectMenu() && interaction.customId) {
+    const cid = interaction.customId;
+
+    if (cid.startsWith("premcc_edit_select:") || cid.startsWith("premcc_delete_select:")) {
+      const parts = cid.split(":");
+      const openerId = parts[parts.length - 1];
+      if (!interaction.guild) return safeUpdate(interaction, { content: "Guild only.", ephemeral: true });
+      if (interaction.user.id !== openerId) return safeUpdate(interaction, { content: "⛔ Not your panel.", ephemeral: true });
+
+      const prem = getPremiumState(interaction.guild.id);
+      if (!prem.isPremium) return safeUpdate(interaction, { content: "🔒 Premium is not active for this server.", ephemeral: true });
+
+      const cmdId = interaction.values?.[0];
+      const cmds = getGuildCustomCmds(interaction.guild.id);
+      const cmd = cmds.find(c => c.id === cmdId);
+      if (!cmd) return safeUpdate(interaction, { content: "Command not found.", ephemeral: true });
+
+      if (cid.startsWith("premcc_delete_select:")) {
+        PREMIUM_CUSTOM_CMDS[interaction.guild.id] = cmds.filter(c => c.id !== cmdId);
+        saveCustomCmds();
+        const payload = buildPremiumCommandsPayload(interaction.guild, openerId);
+        return safeUpdate(interaction, { ...payload, ephemeral: true });
+      }
+
+      // Edit -> show modal prefilled
+      const modal = new ModalBuilder()
+        .setCustomId(`premcc_edit_modal:${cmdId}:${openerId}`)
+        .setTitle("Edit Custom Button");
+
+      const f1 = new TextInputBuilder().setCustomId("label").setLabel("Button text").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(80).setValue(String(cmd.label || ""));
+      const f2 = new TextInputBuilder().setCustomId("style").setLabel("Button color (primary/secondary/success/danger)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(16).setValue(String(cmd.style || "primary"));
+      const f3 = new TextInputBuilder().setCustomId("action").setLabel("Action (addrole/removerole/message/kick/ban)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(16).setValue(String(cmd.action || "addrole"));
+      const f4 = new TextInputBuilder().setCustomId("value").setLabel("Action value (roleId or message)").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000).setValue(String(cmd.value || ""));
+      const f5 = new TextInputBuilder().setCustomId("allowed").setLabel("Who can use (role IDs, comma) - blank = everyone").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(500).setValue(Array.isArray(cmd.allowedRoleIds) ? cmd.allowedRoleIds.join(",") : "");
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(f1),
+        new ActionRowBuilder().addComponents(f2),
+        new ActionRowBuilder().addComponents(f3),
+        new ActionRowBuilder().addComponents(f4),
+        new ActionRowBuilder().addComponents(f5),
+      );
+
+      return interaction.showModal(modal).catch(() => {});
+    }
+  }
+
+  // Modals for create/edit
+  if (interaction.isModalSubmit() && interaction.customId && (interaction.customId.startsWith("premcc_create_modal:") || interaction.customId.startsWith("premcc_edit_modal:"))) {
+    const cid = interaction.customId;
+    const parts = cid.split(":");
+    if (!interaction.guild) return safeUpdate(interaction, { content: "Guild only.", ephemeral: true });
+
+    let openerId = parts[parts.length - 1];
+    if (interaction.user.id !== openerId) return safeUpdate(interaction, { content: "⛔ Not your panel.", ephemeral: true });
+
+    const prem = getPremiumState(interaction.guild.id);
+    if (!prem.isPremium) return safeUpdate(interaction, { content: "🔒 Premium is not active for this server.", ephemeral: true });
+
+    const label = interaction.fields.getTextInputValue("label")?.trim();
+    const styleRaw = interaction.fields.getTextInputValue("style")?.trim();
+    const actionRaw = interaction.fields.getTextInputValue("action")?.trim();
+    const value = interaction.fields.getTextInputValue("value")?.trim();
+    const allowed = interaction.fields.getTextInputValue("allowed")?.trim();
+
+    const style = String(styleRaw || "primary").toLowerCase();
+    const action = String(actionRaw || "addrole").toLowerCase();
+
+    const allowedRoleIds = allowed ? allowed.split(",").map(s => s.replace(/[^0-9]/g,"").trim()).filter(Boolean) : [];
+
+    if (!label || !value) return safeUpdate(interaction, { content: "❌ Missing label/value.", ephemeral: true });
+
+    const cmds = getGuildCustomCmds(interaction.guild.id);
+
+    if (cid.startsWith("premcc_create_modal:")) {
+      const cmd = { id: newCmdId(), name: label, label, style, action, value, allowedRoleIds };
+      cmds.push(cmd);
+      PREMIUM_CUSTOM_CMDS[interaction.guild.id] = cmds;
+      saveCustomCmds();
+    } else {
+      const cmdId = parts[1];
+      const cmd = cmds.find(c => c.id === cmdId);
+      if (!cmd) return safeUpdate(interaction, { content: "Command not found.", ephemeral: true });
+      cmd.name = label;
+      cmd.label = label;
+      cmd.style = style;
+      cmd.action = action;
+      cmd.value = value;
+      cmd.allowedRoleIds = allowedRoleIds;
+      saveCustomCmds();
+    }
+
+    const payload = buildPremiumCommandsPayload(interaction.guild, openerId);
+    return safeUpdate(interaction, { ...payload, ephemeral: true });
+  }
+
+  // Runner for posted buttons
+  if (interaction.isButton() && interaction.customId && interaction.customId.startsWith("custbtn:")) {
+    const parts = interaction.customId.split(":");
+    const guildId = parts[1];
+    const cmdId = parts[2];
+    if (!interaction.guild || interaction.guild.id !== guildId) return safeUpdate(interaction, { content: "Guild only.", ephemeral: true });
+
+    const prem = getPremiumState(interaction.guild.id);
+    if (!prem.isPremium) return safeUpdate(interaction, { content: "🔒 Premium expired. This panel is disabled.", ephemeral: true });
+
+    const cmds = getGuildCustomCmds(interaction.guild.id);
+    const cmd = cmds.find(c => c.id === cmdId);
+    if (!cmd) return safeUpdate(interaction, { content: "❌ This command no longer exists.", ephemeral: true });
+
+    // Allowed roles check (if set)
+    if (Array.isArray(cmd.allowedRoleIds) && cmd.allowedRoleIds.length) {
+      const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+      if (!member) return safeUpdate(interaction, { content: "❌ Can't read your roles.", ephemeral: true });
+      const ok = cmd.allowedRoleIds.some(rid => member.roles.cache.has(rid));
+      if (!ok) return safeUpdate(interaction, { content: "⛔ You are not allowed to use this.", ephemeral: true });
+    }
+
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+
+    const act = String(cmd.action || "").toLowerCase();
+    try {
+      if (act === "addrole") {
+        const roleId = String(cmd.value).replace(/[^0-9]/g,"");
+        if (!roleId) return safeUpdate(interaction, { content: "❌ Invalid role ID.", ephemeral: true });
+        await member.roles.add(roleId);
+        return safeUpdate(interaction, { content: "✅ Role added.", ephemeral: true });
+      }
+      if (act === "removerole") {
+        const roleId = String(cmd.value).replace(/[^0-9]/g,"");
+        if (!roleId) return safeUpdate(interaction, { content: "❌ Invalid role ID.", ephemeral: true });
+        await member.roles.remove(roleId);
+        return safeUpdate(interaction, { content: "✅ Role removed.", ephemeral: true });
+      }
+      if (act === "message") {
+        return safeUpdate(interaction, { content: String(cmd.value).slice(0,1900), ephemeral: true });
+      }
+      if (act === "kick") {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.KickMembers)) {
+          return safeUpdate(interaction, { content: "⛔ You need Kick Members permission.", ephemeral: true });
+        }
+        await member.kick("Custom command kick");
+        return safeUpdate(interaction, { content: "✅ Kicked.", ephemeral: true });
+      }
+      if (act === "ban") {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.BanMembers)) {
+          return safeUpdate(interaction, { content: "⛔ You need Ban Members permission.", ephemeral: true });
+        }
+        await member.ban({ reason: "Custom command ban" });
+        return safeUpdate(interaction, { content: "✅ Banned.", ephemeral: true });
+      }
+
+      return safeUpdate(interaction, { content: "❌ Unknown action.", ephemeral: true });
+    } catch (e) {
+      return safeUpdate(interaction, { content: "❌ Failed (missing bot permissions or role hierarchy).", ephemeral: true });
+    }
+  }
+
+// ==================================================
   // PREMIUM COMMANDS (submenu) — buttons + modals (locked to panel opener)
   // ==================================================
   if (interaction.isButton() && interaction.customId && interaction.customId.startsWith("premcmd_")) {
@@ -2661,86 +2825,6 @@ After activation, open a ticket and you will see the premium ping/name features 
     if (!prem.isPremium) {
       return safeUpdate(interaction, { content: "🔒 Premium is not active for this server.", ephemeral: true }).catch(() => {});
     }
-
-    // --------------------------
-    // Custom Commands (Buttons)
-    // --------------------------
-    if (action === "premcmd_custom_open") {
-      const payload = buildPremiumCustomCommandsPayload(interaction.guild, openerId);
-      return safeUpdate(interaction, { ...payload, ephemeral: true }).catch(() => {});
-    }
-    if (action === "premcmd_custom_back") {
-      return safeUpdate(interaction, buildPremiumCommandsPayload(interaction.guild, openerId)).catch(() => {});
-    }
-    if (action === "premcmd_custom_post") {
-      // Acknowledge fast to avoid "Interaction failed"
-      if (!interaction.deferred && !interaction.replied) {
-        try { await interaction.deferUpdate(); } catch {}
-      }
-      const cmds = getCustomCommands(interaction.guild.id);
-      if (!cmds.length) {
-        return safeUpdate(interaction, { content: "❌ You have no custom commands yet. Click **Create** first.", ephemeral: true }).catch(() => {});
-      }
-      const panel = buildPostedCustomPanel(interaction.guild);
-      try { await interaction.channel.send(panel); } catch (e) {}
-      return safeUpdate(interaction, { content: "✅ Custom commands panel posted in this channel.", ephemeral: true }).catch(() => {});
-    }
-    if (action === "premcmd_custom_create") {
-      // Show modal immediately (must be within 3s)
-      const modal = new ModalBuilder()
-        .setCustomId(`premcmd_custom_create_modal:${openerId}`)
-        .setTitle("Create Custom Button");
-
-      const labelInput = new TextInputBuilder()
-        .setCustomId("label")
-        .setLabel("Button text (label)")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(80)
-        .setPlaceholder("e.g. Get Member");
-
-      const descInput = new TextInputBuilder()
-        .setCustomId("description")
-        .setLabel("Description (optional)")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(false)
-        .setMaxLength(200)
-        .setPlaceholder("Short note shown in manager");
-
-      const styleEmojiInput = new TextInputBuilder()
-        .setCustomId("styleEmoji")
-        .setLabel("Style + Emoji (example: primary | 🔥)")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(80)
-        .setPlaceholder("primary | 🔥");
-
-      const actionTypeInput = new TextInputBuilder()
-        .setCustomId("actionType")
-        .setLabel("Action: add_role / remove_role / message / kick / ban")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(30)
-        .setPlaceholder("add_role");
-
-      const actionValueInput = new TextInputBuilder()
-        .setCustomId("actionValue")
-        .setLabel("Action value + optional restrictions (see placeholder)")
-        .setStyle(TextInputStyle.Paragraph)
-        .setRequired(true)
-        .setMaxLength(1800)
-        .setPlaceholder("For role: @Role or 123...\\nFor message: your text\\nOptional: roles: @Admin,@Staff");
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(labelInput),
-        new ActionRowBuilder().addComponents(descInput),
-        new ActionRowBuilder().addComponents(styleEmojiInput),
-        new ActionRowBuilder().addComponents(actionTypeInput),
-        new ActionRowBuilder().addComponents(actionValueInput),
-      );
-      return interaction.showModal(modal).catch(() => {});
-    }
-
 
     // toggles
     if (action === "premcmd_toggle_claim") {
@@ -2813,182 +2897,6 @@ After activation, open a ticket and you will see the premium ping/name features 
     }
   }
 
-
-
-  // ==================================================
-  // Premium Custom Commands — select menus (edit/delete)
-  // ==================================================
-  if (interaction.isStringSelectMenu() && interaction.customId && interaction.customId.startsWith("premcmd_custom_")) {
-    const [action, openerId] = interaction.customId.split(":");
-    if (!interaction.guild) return safeUpdate(interaction, { content: "Guild only.", ephemeral: true });
-    if (interaction.user.id !== openerId) return safeUpdate(interaction, { content: "⛔ Not your panel.", ephemeral: true });
-
-    const prem = getPremiumState(interaction.guild.id);
-    if (!prem.isPremium) return safeUpdate(interaction, { content: "🔒 Premium is not active for this server.", ephemeral: true });
-
-    const selectedId = interaction.values && interaction.values[0];
-    const cmds = getCustomCommands(interaction.guild.id);
-
-    if (action === "premcmd_custom_delete_select") {
-      const next = cmds.filter(c => c.id !== selectedId);
-      saveCustomCommands(interaction.guild.id, next);
-      const payload = buildPremiumCustomCommandsPayload(interaction.guild, openerId);
-      return safeUpdate(interaction, { ...payload, ephemeral: true }).catch(() => {});
-    }
-
-    if (action === "premcmd_custom_edit_select") {
-      const c = cmds.find(x => x.id === selectedId);
-      if (!c) {
-        const payload = buildPremiumCustomCommandsPayload(interaction.guild, openerId);
-        return safeUpdate(interaction, { content: "❌ Command not found (maybe deleted).", ...payload, ephemeral: true }).catch(() => {});
-      }
-
-      const modal = new ModalBuilder()
-        .setCustomId(`premcmd_custom_edit_modal_${c.id}:${openerId}`)
-        .setTitle("Edit Custom Button");
-
-      const labelInput = new TextInputBuilder()
-        .setCustomId("label")
-        .setLabel("Button text (label)")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(80)
-        .setValue(String(c.label || "").slice(0, 80));
-
-      const descInput = new TextInputBuilder()
-        .setCustomId("description")
-        .setLabel("Description (optional)")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(false)
-        .setMaxLength(200)
-        .setValue(String(c.description || "").slice(0, 200));
-
-      const styleEmojiInput = new TextInputBuilder()
-        .setCustomId("styleEmoji")
-        .setLabel("Style + Emoji (example: primary | 🔥)")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(80)
-        .setValue(`${normalizeBtnStyle(c.style)}${c.emoji ? " | " + String(c.emoji).slice(0,64) : ""}`.slice(0,80));
-
-      const actionTypeInput = new TextInputBuilder()
-        .setCustomId("actionType")
-        .setLabel("Action: add_role / remove_role / message / kick / ban")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(30)
-        .setValue(String(c.actionType || "message").slice(0, 30));
-
-      const rolesLine = (Array.isArray(c.allowedRoles) && c.allowedRoles.length)
-        ? `\nroles: ${c.allowedRoles.join(",")}`
-        : "";
-      const actionValueInput = new TextInputBuilder()
-        .setCustomId("actionValue")
-        .setLabel("Action value + optional restrictions")
-        .setStyle(TextInputStyle.Paragraph)
-        .setRequired(true)
-        .setMaxLength(1800)
-        .setValue((String(c.actionValue || "") + rolesLine).slice(0, 1800));
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(labelInput),
-        new ActionRowBuilder().addComponents(descInput),
-        new ActionRowBuilder().addComponents(styleEmojiInput),
-        new ActionRowBuilder().addComponents(actionTypeInput),
-        new ActionRowBuilder().addComponents(actionValueInput),
-      );
-      return interaction.showModal(modal).catch(() => {});
-    }
-  }
-
-  // ==================================================
-  // Custom Commands — runtime button click handler
-  // ==================================================
-  if (interaction.isButton() && interaction.customId && interaction.customId.startsWith("custcmd:")) {
-    // Always acknowledge quickly
-    if (!interaction.deferred && !interaction.replied) {
-      try { await interaction.deferReply({ ephemeral: true }); } catch {}
-    }
-    const parts = interaction.customId.split(":");
-    const guildId = parts[1];
-    const cmdId = parts[2];
-    if (!interaction.guild || interaction.guild.id !== guildId) {
-      return safeUpdate(interaction, { content: "Guild only.", ephemeral: true }).catch(() => {});
-    }
-
-    const prem = getPremiumState(interaction.guild.id);
-    if (!prem.isPremium) {
-      return safeUpdate(interaction, { content: "🔒 Premium expired or not active.", ephemeral: true }).catch(() => {});
-    }
-
-    const cmds = getCustomCommands(interaction.guild.id);
-    const cmd = cmds.find(c => c.id === cmdId);
-    if (!cmd) return safeUpdate(interaction, { content: "❌ This command no longer exists.", ephemeral: true }).catch(() => {});
-
-    // Role restriction
-    if (Array.isArray(cmd.allowedRoles) && cmd.allowedRoles.length) {
-      const member = interaction.member;
-      const ok = cmd.allowedRoles.some(rid => member?.roles?.cache?.has?.(rid));
-      if (!ok) return safeUpdate(interaction, { content: "⛔ You can't use this button.", ephemeral: true }).catch(() => {});
-    }
-
-    const member = interaction.member;
-    const guild = interaction.guild;
-
-    const parseRoleIdAny = (raw) => {
-      const t = String(raw || "").trim();
-      const m1 = t.match(/^<@&(\d{15,25})>$/);
-      if (m1) return m1[1];
-      const m2 = t.match(/^(\d{15,25})$/);
-      if (m2) return m2[1];
-      return null;
-    };
-
-    const actionType = String(cmd.actionType || "").toLowerCase();
-    const val = String(cmd.actionValue || "");
-
-    try {
-      if (actionType === "add_role") {
-        const roleId = parseRoleIdAny(val);
-        if (!roleId) return safeUpdate(interaction, { content: "❌ Invalid role.", ephemeral: true });
-        const role = guild.roles.cache.get(roleId);
-        if (!role) return safeUpdate(interaction, { content: "❌ Role not found.", ephemeral: true });
-        await member.roles.add(roleId).catch(() => {});
-        return safeUpdate(interaction, { content: `✅ Added role ${role}.`, ephemeral: true });
-      }
-      if (actionType === "remove_role") {
-        const roleId = parseRoleIdAny(val);
-        if (!roleId) return safeUpdate(interaction, { content: "❌ Invalid role.", ephemeral: true });
-        const role = guild.roles.cache.get(roleId);
-        if (!role) return safeUpdate(interaction, { content: "❌ Role not found.", ephemeral: true });
-        await member.roles.remove(roleId).catch(() => {});
-        return safeUpdate(interaction, { content: `✅ Removed role ${role}.`, ephemeral: true });
-      }
-      if (actionType === "message") {
-        const msgText = val.slice(0, 1800);
-        return safeUpdate(interaction, { content: msgText || "✅ Done.", ephemeral: true });
-      }
-      if (actionType === "kick") {
-        if (!guild.members.me?.permissions?.has?.(PermissionsBitField.Flags.KickMembers)) {
-          return safeUpdate(interaction, { content: "❌ I don't have Kick permission.", ephemeral: true });
-        }
-        await member.kick("Custom command button").catch(() => {});
-        return safeUpdate(interaction, { content: "✅ Kicked.", ephemeral: true });
-      }
-      if (actionType === "ban") {
-        if (!guild.members.me?.permissions?.has?.(PermissionsBitField.Flags.BanMembers)) {
-          return safeUpdate(interaction, { content: "❌ I don't have Ban permission.", ephemeral: true });
-        }
-        await member.ban({ reason: "Custom command button" }).catch(() => {});
-        return safeUpdate(interaction, { content: "✅ Banned.", ephemeral: true });
-      }
-
-      return safeUpdate(interaction, { content: "❌ Unknown action.", ephemeral: true });
-    } catch (e) {
-      return safeUpdate(interaction, { content: "❌ Failed to run action (permissions?).", ephemeral: true }).catch(() => {});
-    }
-  }
-
   if (interaction.isModalSubmit() && interaction.customId && interaction.customId.startsWith("premcmd_")) {
     const [action, openerId] = interaction.customId.split(":");
     if (!interaction.guild) return safeUpdate(interaction, { content: "Guild only.", ephemeral: true });
@@ -2999,122 +2907,6 @@ After activation, open a ticket and you will see the premium ping/name features 
     const prem = getPremiumState(interaction.guild.id);
     if (!prem.isPremium) {
       return safeUpdate(interaction, { content: "🔒 Premium is not active for this server.", ephemeral: true }).catch(() => {});
-    }
-
-
-    // --------------------------
-    // Custom Commands (Buttons) — modals
-    // --------------------------
-    if (action === "premcmd_custom_create_modal") {
-      const label = String(interaction.fields.getTextInputValue("label") || "").trim().slice(0, 80);
-      const description = String(interaction.fields.getTextInputValue("description") || "").trim().slice(0, 200);
-      const styleEmoji = String(interaction.fields.getTextInputValue("styleEmoji") || "").trim();
-      const actionType = String(interaction.fields.getTextInputValue("actionType") || "").trim().toLowerCase().slice(0, 30);
-      const rawValue = String(interaction.fields.getTextInputValue("actionValue") || "").trim().slice(0, 1800);
-
-      if (!label) return safeUpdate(interaction, { content: "❌ Missing button label.", ephemeral: true });
-      const parts = styleEmoji.split("|").map(s => s.trim()).filter(Boolean);
-      const style = normalizeBtnStyle(parts[0] || "primary");
-      const emoji = (parts[1] || "").slice(0, 64);
-
-      // Parse optional restrictions: line "roles: ..."
-      let actionValue = rawValue;
-      let allowedRoles = [];
-      const lines = rawValue.split("\n");
-      const kept = [];
-      for (const ln of lines){
-        const m = ln.match(/^\s*roles?\s*:\s*(.+)\s*$/i);
-        if (m){
-          const roleRaw = m[1];
-          allowedRoles = roleRaw.split(",").map(s=>s.trim()).filter(Boolean).map(r=>{
-            const mm = r.match(/^<@&(\d{15,25})>$/);
-            if (mm) return mm[1];
-            if (/^\d{15,25}$/.test(r)) return r;
-            return null;
-          }).filter(Boolean);
-        } else {
-          kept.push(ln);
-        }
-      }
-      actionValue = kept.join("\n").trim().slice(0, 1800);
-
-      const validActions = ["add_role","remove_role","message","kick","ban"];
-      if (!validActions.includes(actionType)) {
-        return safeUpdate(interaction, { content: "❌ Invalid action type. Use: add_role / remove_role / message / kick / ban", ephemeral: true });
-      }
-      if (!actionValue) {
-        return safeUpdate(interaction, { content: "❌ Missing action value.", ephemeral: true });
-      }
-
-      const cmds = getCustomCommands(interaction.guild.id);
-      const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`.slice(0, 32);
-      const next = cmds.concat([{
-        id,
-        label,
-        description,
-        style,
-        emoji,
-        actionType,
-        actionValue,
-        allowedRoles
-      }]).slice(0, 50);
-
-      saveCustomCommands(interaction.guild.id, next);
-      const payload = buildPremiumCustomCommandsPayload(interaction.guild, openerId);
-      return safeUpdate(interaction, { content: "✅ Custom command created.", ...payload, ephemeral: true }).catch(() => {});
-    }
-
-    if (action.startsWith("premcmd_custom_edit_modal_")) {
-      const cmdId = action.replace("premcmd_custom_edit_modal_", "");
-      const label = String(interaction.fields.getTextInputValue("label") || "").trim().slice(0, 80);
-      const description = String(interaction.fields.getTextInputValue("description") || "").trim().slice(0, 200);
-      const styleEmoji = String(interaction.fields.getTextInputValue("styleEmoji") || "").trim();
-      const actionType = String(interaction.fields.getTextInputValue("actionType") || "").trim().toLowerCase().slice(0, 30);
-      const rawValue = String(interaction.fields.getTextInputValue("actionValue") || "").trim().slice(0, 1800);
-
-      if (!label) return safeUpdate(interaction, { content: "❌ Missing button label.", ephemeral: true });
-
-      const parts = styleEmoji.split("|").map(s => s.trim()).filter(Boolean);
-      const style = normalizeBtnStyle(parts[0] || "primary");
-      const emoji = (parts[1] || "").slice(0, 64);
-
-      let actionValue = rawValue;
-      let allowedRoles = [];
-      const lines = rawValue.split("\n");
-      const kept = [];
-      for (const ln of lines){
-        const m = ln.match(/^\s*roles?\s*:\s*(.+)\s*$/i);
-        if (m){
-          const roleRaw = m[1];
-          allowedRoles = roleRaw.split(",").map(s=>s.trim()).filter(Boolean).map(r=>{
-            const mm = r.match(/^<@&(\d{15,25})>$/);
-            if (mm) return mm[1];
-            if (/^\d{15,25}$/.test(r)) return r;
-            return null;
-          }).filter(Boolean);
-        } else {
-          kept.push(ln);
-        }
-      }
-      actionValue = kept.join("\n").trim().slice(0, 1800);
-
-      const validActions = ["add_role","remove_role","message","kick","ban"];
-      if (!validActions.includes(actionType)) {
-        return safeUpdate(interaction, { content: "❌ Invalid action type. Use: add_role / remove_role / message / kick / ban", ephemeral: true });
-      }
-      if (!actionValue) {
-        return safeUpdate(interaction, { content: "❌ Missing action value.", ephemeral: true });
-      }
-
-      const cmds = getCustomCommands(interaction.guild.id);
-      const next = cmds.map(c=>{
-        if (c.id !== cmdId) return c;
-        return { ...c, label, description, style, emoji, actionType, actionValue, allowedRoles };
-      });
-
-      saveCustomCommands(interaction.guild.id, next);
-      const payload = buildPremiumCustomCommandsPayload(interaction.guild, openerId);
-      return safeUpdate(interaction, { content: "✅ Custom command updated.", ...payload, ephemeral: true }).catch(() => {});
     }
 
     const parseRoleId = (raw) => {
