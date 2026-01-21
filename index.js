@@ -264,6 +264,44 @@ function isBotOwner(userId){
   return OWNER_IDS.includes(String(userId));
 }
 
+
+// ===== Middleman prefix commands (custom) =====
+// Role(s) allowed to use MM commands (optional). Comma-separated role IDs.
+// Example in .env: MIDDLEMAN_SUPPORT_ROLE_IDS=111,222
+const MIDDLEMAN_SUPPORT_ROLE_IDS = (process.env.MIDDLEMAN_SUPPORT_ROLE_IDS || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
+
+// Role to grant when pressing the green button on ?mercy
+// Put this in .env: MERCY_JOIN_ROLE_ID=123456789012345678
+const MERCY_JOIN_ROLE_ID = String(process.env.MERCY_JOIN_ROLE_ID || "").trim();
+
+function isMMCommandAllowed(member) {
+  if (!member) return false;
+  if (isBotOwner(member.id)) return true;
+  // Server owner
+  if (member.guild && member.id === member.guild.ownerId) return true;
+  // Admins
+  try {
+    if (member.permissions?.has?.(PermissionsBitField.Flags.Administrator)) return true;
+  } catch {}
+  // Middleman supporters role(s)
+  if (MIDDLEMAN_SUPPORT_ROLE_IDS.length) {
+    return MIDDLEMAN_SUPPORT_ROLE_IDS.some(rid => member.roles?.cache?.has?.(rid));
+  }
+  return false;
+}
+
+const PREFIX = "?";
+
+function buildMercyButtonsRow(ownerId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`mercy_join:${ownerId}`).setLabel("✅ Join us").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`mercy_broke:${ownerId}`).setLabel("❌ Be broke").setStyle(ButtonStyle.Danger)
+  );
+}
+
 function planToDays(plan){
   const p = String(plan || "").toLowerCase();
   if (p === "15d" || p === "15days" || p === "15") return { plan:"15d", days:15 };
@@ -1309,6 +1347,73 @@ client.on("messageCreate", async message => {
 
   const content = message.content.trim();
 
+// ===========================
+// Middleman custom commands
+// ===========================
+if (content.startsWith(PREFIX)) {
+  const parts = content.slice(PREFIX.length).trim().split(/\s+/);
+  const cmd = (parts.shift() || "").toLowerCase();
+
+  const isOurCmd = (cmd === "mercy" || cmd === "mminfo" || cmd === "mmfee");
+  if (isOurCmd) {
+    if (!message.guild || !message.member) return;
+    if (!isMMCommandAllowed(message.member)) {
+      return message.reply("⛔ You can’t use this command. Only **server owner**, **bot owner**, **admins**, or **middleman supporters**.").catch(() => {});
+    }
+
+    if (cmd === "mercy") {
+      const embed = new EmbedBuilder()
+        .setTitle("😔 Unlucky...")
+        .setDescription(
+          "You got scammed unfortunately.\n\n" +
+          "**Choose what you do next:**"
+        )
+        .setFooter({ text: "SafeSwap MM Services" });
+
+      return message.channel.send({
+        embeds: [embed],
+        components: [buildMercyButtonsRow(message.author.id)]
+      }).catch(() => {});
+    }
+
+    if (cmd === "mminfo") {
+      const embed = new EmbedBuilder()
+        .setTitle("🛡️ Middleman Info")
+        .setDescription(
+          "**How a middleman works:**\n" +
+          "• Both sides agree on the deal terms.\n" +
+          "• The middleman holds the item/asset temporarily.\n" +
+          "• Once both sides confirm, the middleman releases to the correct person.\n\n" +
+          "**Rules:**\n" +
+          "• Always confirm the middleman is staff.\n" +
+          "• Never trade privately if you requested an MM.\n" +
+          "• Don’t rush — verify everything."
+        )
+        .setFooter({ text: "SafeSwap MM Services" });
+
+      return message.channel.send({ embeds: [embed] }).catch(() => {});
+    }
+
+    if (cmd === "mmfee") {
+      const embed = new EmbedBuilder()
+        .setTitle("💸 Middleman Fee")
+        .setDescription(
+          "**How fees work:**\n" +
+          "• Fee depends on trade value + risk.\n" +
+          "• Fee is agreed **before** the trade starts.\n" +
+          "• Fee is paid once (no hidden charges).\n\n" +
+          "**Why fees exist:**\n" +
+          "• Covers time + responsibility + scam prevention.\n" +
+          "• Encourages serious trades only."
+        )
+        .setFooter({ text: "SafeSwap MM Services" });
+
+      return message.channel.send({ embeds: [embed] }).catch(() => {});
+    }
+  }
+}
+
+
   // Owner help (prefix) — shows ALL commands (including secret ones)
   // Everyone else should use /help (public).
   if (content === "?help") {
@@ -1927,6 +2032,62 @@ function buildRoleOverwrites(guild, roleIds, permsAllow) {
 // Interaction handler
 // ----------------------
 client.on("interactionCreate", async interaction => {
+
+// --------------------------
+// ?mercy buttons
+// --------------------------
+if (interaction.isButton() && typeof interaction.customId === "string" && interaction.customId.startsWith("mercy_")) {
+  // Always acknowledge quickly
+  if (!interaction.deferred && !interaction.replied) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+  }
+
+  const [action, ownerId] = interaction.customId.split(":");
+  if (ownerId && interaction.user.id !== ownerId) {
+    return interaction.editReply({ content: "This button isn’t for you." }).catch(() => {});
+  }
+
+  if (action === "mercy_broke") {
+    return interaction.editReply({ content: "❌ He chose to be broke." }).catch(() => {});
+  }
+
+  if (action === "mercy_join") {
+    if (!MERCY_JOIN_ROLE_ID) {
+      return interaction.editReply({ content: "⚠️ MERCY_JOIN_ROLE_ID is not set in .env" }).catch(() => {});
+    }
+
+    const guild = interaction.guild;
+    if (!guild) return interaction.editReply({ content: "Guild not found." }).catch(() => {});
+
+    const me = guild.members.me;
+    if (!me) return interaction.editReply({ content: "Bot member not found." }).catch(() => {});
+
+    if (!me.permissions.has(PermissionsBitField.Flags.ManageRoles) && !me.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return interaction.editReply({ content: "I need **Manage Roles** permission." }).catch(() => {});
+    }
+
+    const role = guild.roles.cache.get(MERCY_JOIN_ROLE_ID);
+    if (!role) return interaction.editReply({ content: "Role not found. Check MERCY_JOIN_ROLE_ID." }).catch(() => {});
+
+    if (me.roles.highest.position <= role.position) {
+      return interaction.editReply({
+        content: "I can’t give that role because my bot role is not above it. Move my bot role higher."
+      }).catch(() => {});
+    }
+
+    const member = await guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!member) return interaction.editReply({ content: "Member not found." }).catch(() => {});
+
+    await member.roles.add(role, "Pressed Join us on ?mercy").catch((e) => {
+      console.error("mercy_join add role error:", e);
+    });
+
+    return interaction.editReply({ content: "✅ You joined us. Role given!" }).catch(() => {});
+  }
+
+  return interaction.editReply({ content: "Unknown button." }).catch(() => {});
+}
+
 
   // ==================================================
   // HELP PANEL UI — PRIVATE TABBED MENU
