@@ -220,39 +220,6 @@ let PREMIUM_GUILDS = readJsonSafe(PREMIUM_FILE, {});
 // keys state: { [key]: { createdAt: ISO, used: boolean, usedByGuildId: string|null, usedAt: ISO|null } }
 let PREMIUM_KEYS = readJsonSafe(PREMIUM_KEYS_FILE, {});
 
-// ===============================
-// Premium Custom Commands storage
-// ===============================
-const PREMIUM_CUSTOM_CMDS_FILE = path.join(DATA_DIR, "premiumCustomCommands.json");
-// structure: { [guildId]: [ { id, name, label, style, action, value, allowedRoleIds: [] } ] }
-let PREMIUM_CUSTOM_CMDS = readJsonSafe(PREMIUM_CUSTOM_CMDS_FILE, {});
-
-function getGuildCustomCmds(guildId){
-  if (!PREMIUM_CUSTOM_CMDS[guildId]) PREMIUM_CUSTOM_CMDS[guildId] = [];
-  return PREMIUM_CUSTOM_CMDS[guildId];
-}
-function saveCustomCmds(){
-  writeJsonSafe(PREMIUM_CUSTOM_CMDS_FILE, PREMIUM_CUSTOM_CMDS);
-}
-function newCmdId(){
-  return (Date.now().toString(36) + Math.random().toString(36).slice(2,8)).toLowerCase();
-}
-function normalizeStyle(s){
-  const x = String(s||"").toLowerCase().trim();
-  if (x === "primary") return ButtonStyle.Primary;
-  if (x === "secondary") return ButtonStyle.Secondary;
-  if (x === "success") return ButtonStyle.Success;
-  if (x === "danger") return ButtonStyle.Danger;
-  return ButtonStyle.Primary;
-}
-function styleName(style){
-  if (style === ButtonStyle.Primary) return "primary";
-  if (style === ButtonStyle.Secondary) return "secondary";
-  if (style === ButtonStyle.Success) return "success";
-  if (style === ButtonStyle.Danger) return "danger";
-  return "primary";
-}
-
 // Who can generate premium keys (bot owner(s))
 // Set OWNER_IDS in .env: OWNER_IDS=123,456
 const OWNER_IDS = (process.env.OWNER_IDS || "")
@@ -279,28 +246,49 @@ const MERCY_JOIN_ROLE_ID = String(process.env.MERCY_JOIN_ROLE_ID || "").trim();
 
 function isMMCommandAllowed(member) {
   if (!member) return false;
+
+  // Bot owner(s)
   if (isBotOwner(member.id)) return true;
+
   // Server owner
   if (member.guild && member.id === member.guild.ownerId) return true;
-  // Admins
+
+  // Admin permission
   try {
     if (member.permissions?.has?.(PermissionsBitField.Flags.Administrator)) return true;
   } catch {}
-  // Middleman supporters role(s)
+
+  // Roles from ?setup (Admin / Support / Middleman)
+  try{
+    if (member.guild) {
+      const cfg = getGuildConfig(member.guild.id);
+      const roleIds = [
+        ...(Array.isArray(cfg.adminRoles) ? cfg.adminRoles : []),
+        ...(Array.isArray(cfg.supportRoles) ? cfg.supportRoles : []),
+        ...(Array.isArray(cfg.mmRoles) ? cfg.mmRoles : []),
+      ];
+      if (roleIds.some(rid => member.roles?.cache?.has?.(rid))) return true;
+    }
+  }catch{}
+
+  // Optional extra role IDs from .env
   if (MIDDLEMAN_SUPPORT_ROLE_IDS.length) {
-    return MIDDLEMAN_SUPPORT_ROLE_IDS.some(rid => member.roles?.cache?.has?.(rid));
+    if (MIDDLEMAN_SUPPORT_ROLE_IDS.some(rid => member.roles?.cache?.has?.(rid))) return true;
   }
+
   return false;
 }
 
+
 const PREFIX = "?";
 
-function buildMercyButtonsRow(ownerId) {
+function buildMercyButtonsRow() {
   return new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`mercy_join:${ownerId}`).setLabel("✅ Join us").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`mercy_broke:${ownerId}`).setLabel("❌ Be broke").setStyle(ButtonStyle.Danger)
+    new ButtonBuilder().setCustomId("mercy_join").setLabel("✅ Join us").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("mercy_broke").setLabel("❌ Be broke").setStyle(ButtonStyle.Danger)
   );
 }
+
 
 function planToDays(plan){
   const p = String(plan || "").toLowerCase();
@@ -1279,7 +1267,6 @@ function buildPremiumPanelPayload(guild, openerId){
     new ButtonBuilder().setCustomId(`prem_botnick:${openerId}`).setLabel("🤖 Bot Nick").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`prem_autoclose:${openerId}`).setLabel("⏱ Auto Close").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`prem_cmds:${openerId}`).setLabel("✨ Commands").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`prem_custombtns:${openerId}`).setLabel("🧩 Custom Buttons").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`prem_refresh:${openerId}`).setLabel("🔄 Refresh").setStyle(ButtonStyle.Success),
   );
 
@@ -1304,7 +1291,6 @@ function buildPremiumCommandsPayload(guild, openerId){
       { name: "Close Reasons", value: (Array.isArray(f.customCloseReasons) && f.customCloseReasons.length)
           ? f.customCloseReasons.map((r,i)=>`**${i+1}.** ${String(r).slice(0,80)}`).join("\n")
           : "—", inline: false },
-      { name: "Custom Buttons", value: `🧩 ${getGuildCustomCmds(guild.id).length} configured`, inline: true }
     )
     .setFooter({ text: "Premium • Locked to you" });
 
@@ -1317,10 +1303,6 @@ function buildPremiumCommandsPayload(guild, openerId){
 
   
   const rowB = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`premcc_create:${openerId}`).setLabel("➕ Create Button").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`premcc_edit:${openerId}`).setLabel("✏️ Edit").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`premcc_delete:${openerId}`).setLabel("🗑 Delete").setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(`premcc_post:${openerId}`).setLabel("📌 Post Panel").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`prem_back:${openerId}`).setLabel("⬅️ Back").setStyle(ButtonStyle.Secondary)
   );
 
@@ -1354,9 +1336,12 @@ if (content.startsWith(PREFIX)) {
   const parts = content.slice(PREFIX.length).trim().split(/\s+/);
   const cmd = (parts.shift() || "").toLowerCase();
 
-  const isOurCmd = (cmd === "mercy" || cmd === "mminfo" || cmd === "mmfee");
+  const isOurCmd = (cmd === "mercy" || cmd === "mminfo" || cmd === "mmfee" || cmd === "mmfees");
   if (isOurCmd) {
     if (!message.guild || !message.member) return;
+    if (!isTicketChannel(message.channel)) {
+      return message.reply("⛔ Use this command **only inside a ticket channel**.").catch(() => {});
+    }
     if (!isMMCommandAllowed(message.member)) {
       return message.reply("⛔ You can’t use this command. Only **server owner**, **bot owner**, **admins**, or **middleman supporters**.").catch(() => {});
     }
@@ -1372,45 +1357,51 @@ if (content.startsWith(PREFIX)) {
 
       return message.channel.send({
         embeds: [embed],
-        components: [buildMercyButtonsRow(message.author.id)]
+        components: [buildMercyButtonsRow()]
       }).catch(() => {});
     }
-
     if (cmd === "mminfo") {
       const embed = new EmbedBuilder()
         .setTitle("🛡️ Middleman Info")
         .setDescription(
-          "**How a middleman works:**\n" +
-          "• Both sides agree on the deal terms.\n" +
-          "• The middleman holds the item/asset temporarily.\n" +
-          "• Once both sides confirm, the middleman releases to the correct person.\n\n" +
-          "**Rules:**\n" +
-          "• Always confirm the middleman is staff.\n" +
-          "• Never trade privately if you requested an MM.\n" +
-          "• Don’t rush — verify everything."
+          "**What a Middleman (MM) does:**\n" +
+          "• Holds the items/currency temporarily so neither side can run.\n" +
+          "• Confirms the exact deal terms inside the ticket (no DMs).\n" +
+          "• Releases items only when both sides confirm.\n\n" +
+          "**How to request correctly:**\n" +
+          "1) Open a ticket\n" +
+          "2) Say: what game, what each side gives, and proof\n" +
+          "3) Wait for an official MM to claim\n\n" +
+          "**Safety rules:**\n" +
+          "• Never trust random DMs claiming to be staff\n" +
+          "• Always check roles + ID inside the server\n" +
+          "• Keep everything in the ticket"
         )
         .setFooter({ text: "SafeSwap MM Services" });
 
       return message.channel.send({ embeds: [embed] }).catch(() => {});
     }
 
-    if (cmd === "mmfee") {
+    if (cmd === "mmfee" || cmd === "mmfees") {
       const embed = new EmbedBuilder()
-        .setTitle("💸 Middleman Fee")
+        .setTitle("💸 Middleman Fees")
         .setDescription(
-          "**How fees work:**\n" +
-          "• Fee depends on trade value + risk.\n" +
-          "• Fee is agreed **before** the trade starts.\n" +
-          "• Fee is paid once (no hidden charges).\n\n" +
-          "**Why fees exist:**\n" +
-          "• Covers time + responsibility + scam prevention.\n" +
-          "• Encourages serious trades only."
+          "**Fees depend on:**\n" +
+          "• Trade value\n" +
+          "• Risk / complexity\n" +
+          "• Time needed\n\n" +
+          "**Important:**\n" +
+          "• The fee is agreed **before** we start\n" +
+          "• If the trade is cancelled early, the fee may be reduced/waived (staff decides)\n\n" +
+          "Reply in the ticket with your trade value and we’ll tell you the exact fee."
         )
         .setFooter({ text: "SafeSwap MM Services" });
 
       return message.channel.send({ embeds: [embed] }).catch(() => {});
     }
-  }
+
+
+    }
 }
 
 
@@ -2034,62 +2025,83 @@ function buildRoleOverwrites(guild, roleIds, permsAllow) {
 client.on("interactionCreate", async interaction => {
 
 // --------------------------
+
+// --------------------------
 // ?mercy buttons
 // --------------------------
 if (interaction.isButton() && typeof interaction.customId === "string" && interaction.customId.startsWith("mercy_")) {
-  // Always acknowledge quickly
+  // For buttons we ACK with deferUpdate (no "Interaction failed")
   if (!interaction.deferred && !interaction.replied) {
-    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    await interaction.deferUpdate().catch(() => {});
   }
 
-  const [action, ownerId] = interaction.customId.split(":");
-  if (ownerId && interaction.user.id !== ownerId) {
-    return interaction.editReply({ content: "This button isn’t for you." }).catch(() => {});
-  }
+  const action = interaction.customId; // "mercy_join" | "mercy_broke"
+  const guild = interaction.guild;
+  if (!guild) return;
+
+  // Helper: disable the buttons after one click
+  const disableButtons = async () => {
+    try{
+      if (!interaction.message) return;
+      const rows = (interaction.message.components || []).map(row => {
+        const newRow = ActionRowBuilder.from(row);
+        newRow.components = newRow.components.map(c => ButtonBuilder.from(c).setDisabled(true));
+        return newRow;
+      });
+      await interaction.message.edit({ components: rows }).catch(() => {});
+    }catch{}
+  };
 
   if (action === "mercy_broke") {
-    return interaction.editReply({ content: "❌ He chose to be broke." }).catch(() => {});
+    // Public message (everyone can see)
+    await interaction.channel?.send(`❌ **${interaction.user.tag}** chose **Be broke**.`).catch(() => {});
+    await disableButtons();
+    return;
   }
 
   if (action === "mercy_join") {
     if (!MERCY_JOIN_ROLE_ID) {
-      return interaction.editReply({ content: "⚠️ MERCY_JOIN_ROLE_ID is not set in .env" }).catch(() => {});
+      await interaction.followUp({ content: "⚠️ MERCY_JOIN_ROLE_ID is not set in .env", ephemeral: true }).catch(() => {});
+      return;
     }
 
-    const guild = interaction.guild;
-    if (!guild) return interaction.editReply({ content: "Guild not found." }).catch(() => {});
-
-    const me = guild.members.me;
-    if (!me) return interaction.editReply({ content: "Bot member not found." }).catch(() => {});
+    const me = guild.members.me || (await guild.members.fetchMe().catch(() => null));
+    if (!me) {
+      await interaction.followUp({ content: "Bot member not found.", ephemeral: true }).catch(() => {});
+      return;
+    }
 
     if (!me.permissions.has(PermissionsBitField.Flags.ManageRoles) && !me.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      return interaction.editReply({ content: "I need **Manage Roles** permission." }).catch(() => {});
+      await interaction.followUp({ content: "I need **Manage Roles** permission.", ephemeral: true }).catch(() => {});
+      return;
     }
 
-    const role = guild.roles.cache.get(MERCY_JOIN_ROLE_ID);
-    if (!role) return interaction.editReply({ content: "Role not found. Check MERCY_JOIN_ROLE_ID." }).catch(() => {});
+    const role = guild.roles.cache.get(MERCY_JOIN_ROLE_ID) || (await guild.roles.fetch(MERCY_JOIN_ROLE_ID).catch(()=>null));
+    if (!role) {
+      await interaction.followUp({ content: "Role not found. Check MERCY_JOIN_ROLE_ID.", ephemeral: true }).catch(() => {});
+      return;
+    }
 
     if (me.roles.highest.position <= role.position) {
-      return interaction.editReply({
-        content: "I can’t give that role because my bot role is not above it. Move my bot role higher."
-      }).catch(() => {});
+      await interaction.followUp({ content: "I can’t give that role because my bot role is not above it. Move my bot role higher.", ephemeral: true }).catch(() => {});
+      return;
     }
 
     const member = await guild.members.fetch(interaction.user.id).catch(() => null);
-    if (!member) return interaction.editReply({ content: "Member not found." }).catch(() => {});
+    if (!member) {
+      await interaction.followUp({ content: "Member not found.", ephemeral: true }).catch(() => {});
+      return;
+    }
 
     await member.roles.add(role, "Pressed Join us on ?mercy").catch((e) => {
       console.error("mercy_join add role error:", e);
     });
 
-    return interaction.editReply({ content: "✅ You joined us. Role given!" }).catch(() => {});
+    await interaction.followUp({ content: "✅ You joined us. Role given!", ephemeral: true }).catch(() => {});
+    await disableButtons();
+    return;
   }
-
-  return interaction.editReply({ content: "Unknown button." }).catch(() => {});
 }
-
-
-  // ==================================================
   // HELP PANEL UI — PRIVATE TABBED MENU
   // ==================================================
   if (interaction.isButton()) {
@@ -2292,7 +2304,7 @@ After activation, open a ticket and you will see the premium ping/name features 
   // ==================================================
   // PREMIUM CONTROL PANEL — buttons + modals (locked to panel opener)
   // ==================================================
-  if (interaction.isButton() && interaction.customId && (interaction.customId.startsWith("prem_") || interaction.customId.startsWith("premcc_"))) {
+  if (interaction.isButton() && interaction.customId && interaction.customId.startsWith("prem_")) {
     const parts = interaction.customId.split(":");
     const action = parts[0];
     const openerId = parts[parts.length - 1];
@@ -2337,84 +2349,6 @@ After activation, open a ticket and you will see the premium ping/name features 
     // ===============================
     // Premium Custom Buttons (in ?premium → ✨ Commands)
     // ===============================
-    if (action === "premcc_create") {
-      const modal = new ModalBuilder()
-        .setCustomId(`premcc_create_modal:${openerId}`)
-        .setTitle("Create Custom Button");
-
-      const f1 = new TextInputBuilder().setCustomId("label").setLabel("Button text").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(80);
-      const f2 = new TextInputBuilder().setCustomId("style").setLabel("Button color (primary/secondary/success/danger)").setStyle(TextInputStyle.Short).setRequired(true).setValue("primary").setMaxLength(16);
-      const f3 = new TextInputBuilder().setCustomId("action").setLabel("Action (addrole/removerole/message/kick/ban)").setStyle(TextInputStyle.Short).setRequired(true).setValue("addrole").setMaxLength(16);
-      const f4 = new TextInputBuilder().setCustomId("value").setLabel("Action value (roleId or message)").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000);
-      const f5 = new TextInputBuilder().setCustomId("allowed").setLabel("Who can use (role IDs, comma) - blank = everyone").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(500);
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(f1),
-        new ActionRowBuilder().addComponents(f2),
-        new ActionRowBuilder().addComponents(f3),
-        new ActionRowBuilder().addComponents(f4),
-        new ActionRowBuilder().addComponents(f5),
-      );
-
-      return interaction.showModal(modal).catch(() => {});
-    }
-
-    if (action === "premcc_edit") {
-      const cmds = getGuildCustomCmds(interaction.guild.id);
-      if (!cmds.length) return safeUpdate(interaction, { content: "No custom buttons yet. Create one first.", ephemeral: true });
-      const menu = new StringSelectMenuBuilder()
-        .setCustomId(`premcc_edit_select:${openerId}`)
-        .setPlaceholder("Select a custom button to edit")
-        .addOptions(cmds.slice(0,25).map(c => ({ label: String(c.label||c.name||c.id).slice(0,100), value: c.id })));
-      const row = new ActionRowBuilder().addComponents(menu);
-      return safeUpdate(interaction, { content: "Select a button to edit:", components: [row], embeds: [] , ephemeral: true });
-    }
-
-    if (action === "premcc_delete") {
-      const cmds = getGuildCustomCmds(interaction.guild.id);
-      if (!cmds.length) return safeUpdate(interaction, { content: "No custom buttons to delete.", ephemeral: true });
-      const menu = new StringSelectMenuBuilder()
-        .setCustomId(`premcc_delete_select:${openerId}`)
-        .setPlaceholder("Select a custom button to delete")
-        .addOptions(cmds.slice(0,25).map(c => ({ label: String(c.label||c.name||c.id).slice(0,100), value: c.id })));
-      const row = new ActionRowBuilder().addComponents(menu);
-      return safeUpdate(interaction, { content: "Select a button to delete:", components: [row], embeds: [], ephemeral: true });
-    }
-
-    if (action === "premcc_post") {
-      const cmds = getGuildCustomCmds(interaction.guild.id);
-      if (!cmds.length) return safeUpdate(interaction, { content: "No custom buttons to post. Create one first.", ephemeral: true });
-
-      // Build buttons (max 5 per row)
-      const rows = [];
-      let current = [];
-      for (const c of cmds) {
-        const b = new ButtonBuilder()
-          .setCustomId(`custbtn:${interaction.guild.id}:${c.id}`)
-          .setLabel(String(c.label||c.name||"Button").slice(0,80))
-          .setStyle(normalizeStyle(c.style));
-        current.push(b);
-        if (current.length === 5) {
-          rows.push(new ActionRowBuilder().addComponents(...current));
-          current = [];
-        }
-      }
-      if (current.length) rows.push(new ActionRowBuilder().addComponents(...current));
-
-      const embed = new EmbedBuilder()
-        .setTitle("🧩 Custom Commands")
-        .setDescription("Click a button below.")
-        .setColor(prem.branding.accent || "#5865F2");
-
-      try {
-        await interaction.channel.send({ embeds: [embed], components: rows });
-      } catch (e) {
-        return safeUpdate(interaction, { content: "❌ I couldn't post in this channel (missing permissions).", ephemeral: true });
-      }
-
-      return safeUpdate(interaction, { content: "✅ Posted the custom commands panel in this channel.", ephemeral: true });
-    }
-
     if (action === "prem_ticketname") {
       const modal = new ModalBuilder()
         .setCustomId(`prem_modal_ticketname:${openerId}`)
@@ -2832,162 +2766,11 @@ After activation, open a ticket and you will see the premium ping/name features 
   if (interaction.isStringSelectMenu() && interaction.customId) {
     const cid = interaction.customId;
 
-    if (cid.startsWith("premcc_edit_select:") || cid.startsWith("premcc_delete_select:")) {
-      const parts = cid.split(":");
-      const openerId = parts[parts.length - 1];
-      if (!interaction.guild) return safeUpdate(interaction, { content: "Guild only.", ephemeral: true });
-      if (interaction.user.id !== openerId) return safeUpdate(interaction, { content: "⛔ Not your panel.", ephemeral: true });
-
-      const prem = getPremiumState(interaction.guild.id);
-      if (!prem.isPremium) return safeUpdate(interaction, { content: "🔒 Premium is not active for this server.", ephemeral: true });
-
-      const cmdId = interaction.values?.[0];
-      const cmds = getGuildCustomCmds(interaction.guild.id);
-      const cmd = cmds.find(c => c.id === cmdId);
-      if (!cmd) return safeUpdate(interaction, { content: "Command not found.", ephemeral: true });
-
-      if (cid.startsWith("premcc_delete_select:")) {
-        PREMIUM_CUSTOM_CMDS[interaction.guild.id] = cmds.filter(c => c.id !== cmdId);
-        saveCustomCmds();
-        const payload = buildPremiumCommandsPayload(interaction.guild, openerId);
-        return safeUpdate(interaction, { ...payload, ephemeral: true });
-      }
-
-      // Edit -> show modal prefilled
-      const modal = new ModalBuilder()
-        .setCustomId(`premcc_edit_modal:${cmdId}:${openerId}`)
-        .setTitle("Edit Custom Button");
-
-      const f1 = new TextInputBuilder().setCustomId("label").setLabel("Button text").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(80).setValue(String(cmd.label || ""));
-      const f2 = new TextInputBuilder().setCustomId("style").setLabel("Button color (primary/secondary/success/danger)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(16).setValue(String(cmd.style || "primary"));
-      const f3 = new TextInputBuilder().setCustomId("action").setLabel("Action (addrole/removerole/message/kick/ban)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(16).setValue(String(cmd.action || "addrole"));
-      const f4 = new TextInputBuilder().setCustomId("value").setLabel("Action value (roleId or message)").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000).setValue(String(cmd.value || ""));
-      const f5 = new TextInputBuilder().setCustomId("allowed").setLabel("Who can use (role IDs, comma) - blank = everyone").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(500).setValue(Array.isArray(cmd.allowedRoleIds) ? cmd.allowedRoleIds.join(",") : "");
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(f1),
-        new ActionRowBuilder().addComponents(f2),
-        new ActionRowBuilder().addComponents(f3),
-        new ActionRowBuilder().addComponents(f4),
-        new ActionRowBuilder().addComponents(f5),
-      );
-
-      return interaction.showModal(modal).catch(() => {});
     }
-  }
 
   // Modals for create/edit
-  if (interaction.isModalSubmit() && interaction.customId && (interaction.customId.startsWith("premcc_create_modal:") || interaction.customId.startsWith("premcc_edit_modal:"))) {
-    const cid = interaction.customId;
-    const parts = cid.split(":");
-    if (!interaction.guild) return safeUpdate(interaction, { content: "Guild only.", ephemeral: true });
-
-    let openerId = parts[parts.length - 1];
-    if (interaction.user.id !== openerId) return safeUpdate(interaction, { content: "⛔ Not your panel.", ephemeral: true });
-
-    const prem = getPremiumState(interaction.guild.id);
-    if (!prem.isPremium) return safeUpdate(interaction, { content: "🔒 Premium is not active for this server.", ephemeral: true });
-
-    const label = interaction.fields.getTextInputValue("label")?.trim();
-    const styleRaw = interaction.fields.getTextInputValue("style")?.trim();
-    const actionRaw = interaction.fields.getTextInputValue("action")?.trim();
-    const value = interaction.fields.getTextInputValue("value")?.trim();
-    const allowed = interaction.fields.getTextInputValue("allowed")?.trim();
-
-    const style = String(styleRaw || "primary").toLowerCase();
-    const action = String(actionRaw || "addrole").toLowerCase();
-
-    const allowedRoleIds = allowed ? allowed.split(",").map(s => s.replace(/[^0-9]/g,"").trim()).filter(Boolean) : [];
-
-    if (!label || !value) return safeUpdate(interaction, { content: "❌ Missing label/value.", ephemeral: true });
-
-    const cmds = getGuildCustomCmds(interaction.guild.id);
-
-    if (cid.startsWith("premcc_create_modal:")) {
-      const cmd = { id: newCmdId(), name: label, label, style, action, value, allowedRoleIds };
-      cmds.push(cmd);
-      PREMIUM_CUSTOM_CMDS[interaction.guild.id] = cmds;
-      saveCustomCmds();
-    } else {
-      const cmdId = parts[1];
-      const cmd = cmds.find(c => c.id === cmdId);
-      if (!cmd) return safeUpdate(interaction, { content: "Command not found.", ephemeral: true });
-      cmd.name = label;
-      cmd.label = label;
-      cmd.style = style;
-      cmd.action = action;
-      cmd.value = value;
-      cmd.allowedRoleIds = allowedRoleIds;
-      saveCustomCmds();
-    }
-
-    const payload = buildPremiumCommandsPayload(interaction.guild, openerId);
-    return safeUpdate(interaction, { ...payload, ephemeral: true });
-  }
-
   // Runner for posted buttons
-  if (interaction.isButton() && interaction.customId && interaction.customId.startsWith("custbtn:")) {
-    const parts = interaction.customId.split(":");
-    const guildId = parts[1];
-    const cmdId = parts[2];
-    if (!interaction.guild || interaction.guild.id !== guildId) return safeUpdate(interaction, { content: "Guild only.", ephemeral: true });
-
-    const prem = getPremiumState(interaction.guild.id);
-    if (!prem.isPremium) return safeUpdate(interaction, { content: "🔒 Premium expired. This panel is disabled.", ephemeral: true });
-
-    const cmds = getGuildCustomCmds(interaction.guild.id);
-    const cmd = cmds.find(c => c.id === cmdId);
-    if (!cmd) return safeUpdate(interaction, { content: "❌ This command no longer exists.", ephemeral: true });
-
-    // Allowed roles check (if set)
-    if (Array.isArray(cmd.allowedRoleIds) && cmd.allowedRoleIds.length) {
-      const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-      if (!member) return safeUpdate(interaction, { content: "❌ Can't read your roles.", ephemeral: true });
-      const ok = cmd.allowedRoleIds.some(rid => member.roles.cache.has(rid));
-      if (!ok) return safeUpdate(interaction, { content: "⛔ You are not allowed to use this.", ephemeral: true });
-    }
-
-    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-
-    const act = String(cmd.action || "").toLowerCase();
-    try {
-      if (act === "addrole") {
-        const roleId = String(cmd.value).replace(/[^0-9]/g,"");
-        if (!roleId) return safeUpdate(interaction, { content: "❌ Invalid role ID.", ephemeral: true });
-        await member.roles.add(roleId);
-        return safeUpdate(interaction, { content: "✅ Role added.", ephemeral: true });
-      }
-      if (act === "removerole") {
-        const roleId = String(cmd.value).replace(/[^0-9]/g,"");
-        if (!roleId) return safeUpdate(interaction, { content: "❌ Invalid role ID.", ephemeral: true });
-        await member.roles.remove(roleId);
-        return safeUpdate(interaction, { content: "✅ Role removed.", ephemeral: true });
-      }
-      if (act === "message") {
-        return safeUpdate(interaction, { content: String(cmd.value).slice(0,1900), ephemeral: true });
-      }
-      if (act === "kick") {
-        if (!interaction.memberPermissions?.has(PermissionFlagsBits.KickMembers)) {
-          return safeUpdate(interaction, { content: "⛔ You need Kick Members permission.", ephemeral: true });
-        }
-        await member.kick("Custom command kick");
-        return safeUpdate(interaction, { content: "✅ Kicked.", ephemeral: true });
-      }
-      if (act === "ban") {
-        if (!interaction.memberPermissions?.has(PermissionFlagsBits.BanMembers)) {
-          return safeUpdate(interaction, { content: "⛔ You need Ban Members permission.", ephemeral: true });
-        }
-        await member.ban({ reason: "Custom command ban" });
-        return safeUpdate(interaction, { content: "✅ Banned.", ephemeral: true });
-      }
-
-      return safeUpdate(interaction, { content: "❌ Unknown action.", ephemeral: true });
-    } catch (e) {
-      return safeUpdate(interaction, { content: "❌ Failed (missing bot permissions or role hierarchy).", ephemeral: true });
-    }
-  }
-
-// ==================================================
+  // ==================================================
   // PREMIUM COMMANDS (submenu) — buttons + modals (locked to panel opener)
   // ==================================================
   if (interaction.isButton() && interaction.customId && interaction.customId.startsWith("premcmd_")) {
