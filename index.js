@@ -1382,21 +1382,25 @@ if (content.startsWith(PREFIX)) {
   const embed = new EmbedBuilder()
     .setTitle("🛡️ Nozzarri Scam Support — Do THIS now")
     .setDescription(
-      "**If you think you got scammed, follow this EXACT checklist (no skipping):**\n\n" +
-      "**A) Freeze everything (right now)**\n" +
-      "1) **STOP** sending anything. No ‘one more payment’, no ‘final fee’.\n" +
-      "2) **Do not delete messages** (DMs + ticket chat).\n" +
-      "3) If it’s a game/crypto trade: **don’t do chargebacks** unless staff tells you — it can mess up proof.\n\n" +
-      "**B) Collect proof (minimum required)**\n" +
-      "• Screenshots/video of the full conversation (show usernames + timestamps)\n" +
-      "• Trade proof: receipts, transaction IDs, trade logs, in-game screenshots\n" +
-      "• Their Discord **ID** + any alt accounts\n\n" +
-      "**C) Post it in THIS ticket only**\n" +
-      "• No DMs, no side chats. Staff only trusts proof posted here.\n\n" +
+            "**If you think you got scammed, do this step-by-step (staff uses this checklist):**\n\n" +
+      "**1) STOP sending anything**\n" +
+      "• No more payments, no 'final fee', no 'unlock' money.\n" +
+      "• Don't accept links/files from them.\n\n" +
+      "**2) LOCK your proof**\n" +
+      "• **Do NOT delete** DMs, screenshots, or ticket messages.\n" +
+      "• Crypto: copy **TXID**, wallet, network, time.\n" +
+      "• Roblox/items: keep trade history screenshots + receipts.\n\n" +
+      "**3) Post the proof in THIS ticket (copy/paste format)**\n" +
+      "• Scammer Discord tag + **User ID**\n" +
+      "• What you sent / what you were promised\n" +
+      "• Proof (screenshots/video) showing **timestamps**\n" +
+      "• Any payment proof (receipt, TXID, screenshots)\n\n" +
+      "**4) Wait for staff / MM instructions**\n" +
+      "• Do not DM staff. Keep everything in-ticket for safety.\n\n" +
       "**Buttons below:**\n" +
-      "✅ **Join us** → gives you the server role (needed for faster MM/support access).\n" +
-      "❌ **Be broke** → sends a public message that you clicked it (meme button).\n\n" +
-      "**Note:** A Middleman can’t magically recover losses, but we **can** verify, document, and help you avoid repeat scams."
+      "✅ **Join us** → gives you the server role (required for MM/support access).\n" +
+      "❌ **Be broke** → meme button (posts publicly that you clicked it).\n\n" +
+      "If **Join us** does not give the role: the bot needs **Manage Roles** and its bot role must be **above** the role it gives."
     )
     .setFooter({ text: "Nozzarri Tickets" });
 
@@ -1437,19 +1441,17 @@ if (content.startsWith(PREFIX)) {
   const embed = new EmbedBuilder()
     .setTitle("💳 MM Fee — What You Need To Provide")
     .setDescription(
-      "**To get the exact MM fee, reply with:**\n" +
-      "• **Trade value** (number + currency, e.g. $50 / 10k Robux / 2 items worth X)\n" +
-      "• **What game/platform** (Roblox / Crypto / Giftcards / etc.)\n" +
-      "• **How many transfers/steps** (1 swap, multiple items, split payments)\n" +
-      "• Any **special risk** (new accounts, chargeback risk, off-platform payments)\n\n" +
-      "**How the fee is decided (simple):**\n" +
-      "• Higher value = higher responsibility\n" +
-      "• More steps = more time\n" +
-      "• Higher risk = higher fee\n\n" +
-      "**When it’s paid:**\n" +
-      "• The MM tells the fee **before** starting.\n" +
-      "• Fee is usually paid **before release** (or as staff instructs in-ticket).\n\n" +
-      "Send the details above and staff will answer with the **exact fee** for this ticket."
+            "**To calculate the MM fee for THIS exact trade, reply with this template (copy/paste):**\n\n" +
+      "• **Trade type:** (Roblox / Crypto / Giftcard / Other)\n" +
+      "• **Total value:** (example: $50 / 10,000 Robux / 2 limiteds worth X)\n" +
+      "• **Items each side gives:** (Side A → ... | Side B → ...)\n" +
+      "• **How many steps:** (single swap / multiple items / split payments)\n" +
+      "• **Who pays the fee:** (A / B / split)\n\n" +
+      "**Staff will reply in-ticket with:**\n" +
+      "• The **exact fee amount**\n" +
+      "• Where/how to pay it (if needed)\n" +
+      "• When the MM starts the process\n\n" +
+      "Do **not** send money/items until a staff MM confirms the fee **in this ticket**."
     )
     .setFooter({ text: "Nozzarri Tickets" });
 
@@ -2127,7 +2129,7 @@ if (interaction.isButton() && typeof interaction.customId === "string" && intera
       return;
     }
 
-    if (!me.permissions.has(PermissionsBitField.Flags.ManageRoles) && !me.permissions.has(PermissionFlagsBits.Administrator)) {
+    if (!me.permissions.has(PermissionFlagsBits.ManageRoles) && !me.permissions.has(PermissionFlagsBits.Administrator)) {
       await interaction.followUp({ content: "I need **Manage Roles** permission.", ephemeral: true }).catch(() => {});
       return;
     }
