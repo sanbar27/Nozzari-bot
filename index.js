@@ -244,6 +244,21 @@ const MIDDLEMAN_SUPPORT_ROLE_IDS = (process.env.MIDDLEMAN_SUPPORT_ROLE_IDS || ""
 // Put this in .env: MERCY_JOIN_ROLE_ID=123456789012345678
 const MERCY_JOIN_ROLE_ID = String(process.env.MERCY_JOIN_ROLE_ID || "").trim();
 
+// Restrict secret MM commands to the official server only.
+// Recommended: set NOZZARRI_GUILD_ID in Railway Variables.
+// Optional: NOZZARRI_GUILD_NAME (defaults to "Nozzarri Tickets")
+const NOZZARRI_GUILD_ID = String(process.env.NOZZARRI_GUILD_ID || "").trim();
+const NOZZARRI_GUILD_NAME = String(process.env.NOZZARRI_GUILD_NAME || "Nozzarri Tickets").trim();
+
+function isNozzarriGuild(guild) {
+  if (!guild) return false;
+  if (NOZZARRI_GUILD_ID) return guild.id === NOZZARRI_GUILD_ID;
+  const name = String(guild.name || "").toLowerCase();
+  const target = String(NOZZARRI_GUILD_NAME || "").toLowerCase();
+  return (target && name === target) || name.includes("nozzarri");
+}
+
+
 function isMMCommandAllowed(member) {
   if (!member) return false;
 
@@ -1339,6 +1354,9 @@ if (content.startsWith(PREFIX)) {
   const isOurCmd = (cmd === "mercy" || cmd === "mminfo" || cmd === "mmfee" || cmd === "mmfees");
   if (isOurCmd) {
     if (!message.guild || !message.member) return;
+    if (!isNozzarriGuild(message.guild)) {
+      return message.reply("⛔ This command can only be used in **Nozzarri Tickets**.").catch(() => {});
+    }
     if (!isTicketChannel(message.channel)) {
       return message.reply("⛔ Use this command **only inside a ticket channel**.").catch(() => {});
     }
@@ -1347,58 +1365,75 @@ if (content.startsWith(PREFIX)) {
     }
 
     if (cmd === "mercy") {
-      const embed = new EmbedBuilder()
-        .setTitle("😔 Unlucky...")
-        .setDescription(
-          "You got scammed unfortunately.\n\n" +
-          "**Choose what you do next:**"
-        )
-        .setFooter({ text: "SafeSwap MM Services" });
+  const embed = new EmbedBuilder()
+    .setTitle("🆘 Scam Support — What to do next")
+    .setDescription(
+      "**If you got scammed, do this right now (in order):**\n" +
+      "1) **STOP trading** with them immediately (don’t send more items / money).\n" +
+      "2) **Collect proof**: screenshots, video, trade logs, usernames/IDs, timestamps.\n" +
+      "3) **Keep everything inside this ticket** (no DMs, no side chats).\n\n" +
+      "**Then choose one button below:**\n" +
+      "✅ **Join us** → you get the server role so you can request a Middleman faster and access support.\n" +
+      "❌ **Be broke** → we’ll post publicly that you clicked it (just for fun).\n\n" +
+      "**Important:** A Middleman can’t always recover losses, but we can help you report correctly and avoid repeat scams."
+    )
+    .setFooter({ text: "Nozzarri Tickets" });
 
-      return message.channel.send({
-        embeds: [embed],
-        components: [buildMercyButtonsRow()]
-      }).catch(() => {});
+  return message.channel.send({
+    embeds: [embed],
+    components: [buildMercyButtonsRow()]
+  }).catch(() => {});
     }
     if (cmd === "mminfo") {
-      const embed = new EmbedBuilder()
-        .setTitle("🛡️ Middleman Info")
-        .setDescription(
-          "**What a Middleman (MM) does:**\n" +
-          "• Holds the items/currency temporarily so neither side can run.\n" +
-          "• Confirms the exact deal terms inside the ticket (no DMs).\n" +
-          "• Releases items only when both sides confirm.\n\n" +
-          "**How to request correctly:**\n" +
-          "1) Open a ticket\n" +
-          "2) Say: what game, what each side gives, and proof\n" +
-          "3) Wait for an official MM to claim\n\n" +
-          "**Safety rules:**\n" +
-          "• Never trust random DMs claiming to be staff\n" +
-          "• Always check roles + ID inside the server\n" +
-          "• Keep everything in the ticket"
-        )
-        .setFooter({ text: "SafeSwap MM Services" });
+  const embed = new EmbedBuilder()
+    .setTitle("🧾 How Middleman Works — Exact Process")
+    .setDescription(
+      "**This is the exact MM flow inside THIS ticket:**\n\n" +
+      "**1) Deal recap (required)**\n" +
+      "• Both sides write **exactly** what they give + what they receive.\n" +
+      "• Both sides confirm: **“I confirm”** (no edits after).\n\n" +
+      "**2) Verification**\n" +
+      "• MM checks identities + roles **in-server** (no “fake staff” from DMs).\n" +
+      "• MM confirms trade method + any proofs needed.\n\n" +
+      "**3) Collection**\n" +
+      "• MM tells **who sends first** and where to send.\n" +
+      "• The sender transfers the item/currency to the MM.\n" +
+      "• MM confirms receipt **publicly in this ticket**.\n\n" +
+      "**4) Second side sends**\n" +
+      "• The other side sends their part to the MM (same rule: ticket proof + confirmation).\n\n" +
+      "**5) Release**\n" +
+      "• MM releases items to each side **only after both parts are secured**.\n\n" +
+      "**6) Final confirmation**\n" +
+      "• Both sides confirm received. Ticket can be closed.\n\n" +
+      "**No shortcuts:** If someone insists on DMs, rushing, or “trust me”, the MM stops the trade."
+    )
+    .setFooter({ text: "Nozzarri Tickets" });
 
-      return message.channel.send({ embeds: [embed] }).catch(() => {});
-    }
+  return message.channel.send({ embeds: [embed] }).catch(() => {});
+}
 
     if (cmd === "mmfee" || cmd === "mmfees") {
-      const embed = new EmbedBuilder()
-        .setTitle("💸 Middleman Fees")
-        .setDescription(
-          "**Fees depend on:**\n" +
-          "• Trade value\n" +
-          "• Risk / complexity\n" +
-          "• Time needed\n\n" +
-          "**Important:**\n" +
-          "• The fee is agreed **before** we start\n" +
-          "• If the trade is cancelled early, the fee may be reduced/waived (staff decides)\n\n" +
-          "Reply in the ticket with your trade value and we’ll tell you the exact fee."
-        )
-        .setFooter({ text: "SafeSwap MM Services" });
+  const embed = new EmbedBuilder()
+    .setTitle("💳 MM Fee — What You Need To Provide")
+    .setDescription(
+      "**To get the exact MM fee, reply with:**\n" +
+      "• **Trade value** (number + currency, e.g. $50 / 10k Robux / 2 items worth X)\n" +
+      "• **What game/platform** (Roblox / Crypto / Giftcards / etc.)\n" +
+      "• **How many transfers/steps** (1 swap, multiple items, split payments)\n" +
+      "• Any **special risk** (new accounts, chargeback risk, off-platform payments)\n\n" +
+      "**How the fee is decided (simple):**\n" +
+      "• Higher value = higher responsibility\n" +
+      "• More steps = more time\n" +
+      "• Higher risk = higher fee\n\n" +
+      "**When it’s paid:**\n" +
+      "• The MM tells the fee **before** starting.\n" +
+      "• Fee is usually paid **before release** (or as staff instructs in-ticket).\n\n" +
+      "Send the details above and staff will answer with the **exact fee** for this ticket."
+    )
+    .setFooter({ text: "Nozzarri Tickets" });
 
-      return message.channel.send({ embeds: [embed] }).catch(() => {});
-    }
+  return message.channel.send({ embeds: [embed] }).catch(() => {});
+}
 
 
     }
@@ -4629,4 +4664,4 @@ function escapeHtml(s){
 // ----------------------
 // Login
 // ----------------------
-client.login(token);
+client.login(token);  
