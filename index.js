@@ -252,10 +252,12 @@ const NOZZARRI_GUILD_NAME = String(process.env.NOZZARRI_GUILD_NAME || "Nozzarri 
 
 function isNozzarriGuild(guild) {
   if (!guild) return false;
+  // If you set NOZZARRI_GUILD_ID, we enforce STRICT server-only usage.
   if (NOZZARRI_GUILD_ID) return guild.id === NOZZARRI_GUILD_ID;
-  const name = String(guild.name || "").toLowerCase();
-  const target = String(NOZZARRI_GUILD_NAME || "").toLowerCase();
-  return (target && name === target) || name.includes("nozzarri");
+
+  // If NOZZARRI_GUILD_ID is NOT set, don't block commands (prevents "it doesn't work").
+  // To lock it to only your server, set NOZZARRI_GUILD_ID in Railway Variables.
+  return true;
 }
 
 
@@ -270,7 +272,7 @@ function isMMCommandAllowed(member) {
 
   // Admin permission
   try {
-    if (member.permissions?.has?.(PermissionsBitField.Flags.Administrator)) return true;
+    if (member.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
   } catch {}
 
   // Roles from ?setup (Admin / Support / Middleman)
@@ -947,13 +949,25 @@ if (!member || !member.guild) return false;
 
 function isTicketChannel(channel){
   if (!channel || channel.type !== ChannelType.GuildText) return false;
+
+  // 1) Best signal: category IDs set by ?setup
   const cfg = getGuildConfig(channel.guild.id);
   if (cfg.supportCategoryId && channel.parentId === cfg.supportCategoryId) return true;
   if (cfg.mmCategoryId && channel.parentId === cfg.mmCategoryId) return true;
+
+  // 2) Topic marker (this bot writes it when opening tickets)
   const t = parseTopic(channel.topic);
   if (t && t.opened) return true;
+
+  // 3) Name-based fallback (very permissive so it works with emoji/prefixes)
   const name = (channel.name || "").toLowerCase();
-  return name.startsWith("ticket-") || name.startsWith("support-") || name.startsWith("trade-") || name.startsWith("mm-");
+  if (/(ticket|support|help|trade|mm|middleman)/i.test(name)) return true;
+
+  // 4) Parent category name fallback
+  const parentName = (channel.parent?.name || "").toLowerCase();
+  if (parentName && /(ticket|support|help|trade|mm|middleman)/i.test(parentName)) return true;
+
+  return false;
 }
 
 // central close logic (used by button + /close)
@@ -1366,16 +1380,23 @@ if (content.startsWith(PREFIX)) {
 
     if (cmd === "mercy") {
   const embed = new EmbedBuilder()
-    .setTitle("🆘 Scam Support — What to do next")
+    .setTitle("🛡️ Nozzarri Scam Support — Do THIS now")
     .setDescription(
-      "**If you got scammed, do this right now (in order):**\n" +
-      "1) **STOP trading** with them immediately (don’t send more items / money).\n" +
-      "2) **Collect proof**: screenshots, video, trade logs, usernames/IDs, timestamps.\n" +
-      "3) **Keep everything inside this ticket** (no DMs, no side chats).\n\n" +
-      "**Then choose one button below:**\n" +
-      "✅ **Join us** → you get the server role so you can request a Middleman faster and access support.\n" +
-      "❌ **Be broke** → we’ll post publicly that you clicked it (just for fun).\n\n" +
-      "**Important:** A Middleman can’t always recover losses, but we can help you report correctly and avoid repeat scams."
+      "**If you think you got scammed, follow this EXACT checklist (no skipping):**\n\n" +
+      "**A) Freeze everything (right now)**\n" +
+      "1) **STOP** sending anything. No ‘one more payment’, no ‘final fee’.\n" +
+      "2) **Do not delete messages** (DMs + ticket chat).\n" +
+      "3) If it’s a game/crypto trade: **don’t do chargebacks** unless staff tells you — it can mess up proof.\n\n" +
+      "**B) Collect proof (minimum required)**\n" +
+      "• Screenshots/video of the full conversation (show usernames + timestamps)\n" +
+      "• Trade proof: receipts, transaction IDs, trade logs, in-game screenshots\n" +
+      "• Their Discord **ID** + any alt accounts\n\n" +
+      "**C) Post it in THIS ticket only**\n" +
+      "• No DMs, no side chats. Staff only trusts proof posted here.\n\n" +
+      "**Buttons below:**\n" +
+      "✅ **Join us** → gives you the server role (needed for faster MM/support access).\n" +
+      "❌ **Be broke** → sends a public message that you clicked it (meme button).\n\n" +
+      "**Note:** A Middleman can’t magically recover losses, but we **can** verify, document, and help you avoid repeat scams."
     )
     .setFooter({ text: "Nozzarri Tickets" });
 
@@ -2106,7 +2127,7 @@ if (interaction.isButton() && typeof interaction.customId === "string" && intera
       return;
     }
 
-    if (!me.permissions.has(PermissionsBitField.Flags.ManageRoles) && !me.permissions.has(PermissionsBitField.Flags.Administrator)) {
+    if (!me.permissions.has(PermissionsBitField.Flags.ManageRoles) && !me.permissions.has(PermissionFlagsBits.Administrator)) {
       await interaction.followUp({ content: "I need **Manage Roles** permission.", ephemeral: true }).catch(() => {});
       return;
     }
@@ -4664,4 +4685,4 @@ function escapeHtml(s){
 // ----------------------
 // Login
 // ----------------------
-client.login(token);  
+client.login(token);
