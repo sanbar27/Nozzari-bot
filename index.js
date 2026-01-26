@@ -654,6 +654,24 @@ function getDefaultConfig() {
     panelText: {
       supportDescription: null,
       tradeDescription: null
+    },
+
+    // Panel UI (FREE): titles / images / menu texts per panel
+    panelUI: {
+      support: {
+        title: null,
+        imageUrl: null,
+        menuPlaceholder: null,
+        optionLabel: null,
+        optionDescription: null
+      },
+      trade: {
+        title: null,
+        imageUrl: null,
+        menuPlaceholder: null,
+        optionLabel: null,
+        optionDescription: null
+      }
     }
   };
 }
@@ -678,6 +696,7 @@ function getGuildConfig(guildId) {
     tradeEnabled: inferredTradeEnabled,
     logsEnabled: inferredLogsEnabled,
     panelText: { ...def.panelText, ...(saved.panelText || {}) },
+    panelUI: { ...def.panelUI, ...(saved.panelUI || {}), support: { ...(def.panelUI?.support||{}), ...((saved.panelUI||{}).support||{}) }, trade: { ...(def.panelUI?.trade||{}), ...((saved.panelUI||{}).trade||{}) } },
     supportRoles: normalizeArray(saved.supportRoles ?? def.supportRoles),
     mmRoles: normalizeArray(saved.mmRoles ?? def.mmRoles),
     adminRoles: normalizeArray(saved.adminRoles ?? def.adminRoles)
@@ -1039,33 +1058,63 @@ function makeTicketMenuCustomId() {
   return `ticket_type:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function buildSupportMenu() {
+function buildSupportMenu(guildId) {
   const customId = makeTicketMenuCustomId();
+  const cfg = guildId ? getGuildConfig(guildId) : null;
+  const ui = cfg?.panelUI?.support || {};
+
+  const placeholder = (typeof ui.menuPlaceholder === "string" && ui.menuPlaceholder.trim())
+    ? ui.menuPlaceholder.trim()
+    : "🛠️ Open a support ticket.";
+
+  const optLabel = (typeof ui.optionLabel === "string" && ui.optionLabel.trim())
+    ? ui.optionLabel.trim()
+    : "🛠️ Support";
+
+  const optDesc = (typeof ui.optionDescription === "string" && ui.optionDescription.trim())
+    ? ui.optionDescription.trim()
+    : "Get help from our staff";
+
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(customId)
-      .setPlaceholder("🛠️ Open a support ticket...")
+      .setPlaceholder(placeholder.slice(0, 100))
       .addOptions([
         {
-          label: "🛠️ Support",
+          label: optLabel.slice(0, 100),
           value: "support",
-          description: "Get help from our staff"
+          description: optDesc.slice(0, 100)
         }
       ])
   );
 }
 
-function buildTradeMenu() {
+function buildTradeMenu(guildId) {
   const customId = makeTicketMenuCustomId();
+  const cfg = guildId ? getGuildConfig(guildId) : null;
+  const ui = cfg?.panelUI?.trade || {};
+
+  const placeholder = (typeof ui.menuPlaceholder === "string" && ui.menuPlaceholder.trim())
+    ? ui.menuPlaceholder.trim()
+    : "🤝 Request trade help.";
+
+  const optLabel = (typeof ui.optionLabel === "string" && ui.optionLabel.trim())
+    ? ui.optionLabel.trim()
+    : "🤝 Trade Help";
+
+  const optDesc = (typeof ui.optionDescription === "string" && ui.optionDescription.trim())
+    ? ui.optionDescription.trim()
+    : "Request trade assistance for safe trading";
+
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(customId)
-      .setPlaceholder("🤝 Request trade help...")
+      .setPlaceholder(placeholder.slice(0, 100))
       .addOptions([
         {
-          label: "🤝 Trade Help",
+          label: optLabel.slice(0, 100),
           value: "trade",
-          description: "Request trade assistance for safe trading"
+          description: optDesc.slice(0, 100)
         }
       ])
   );
@@ -1126,11 +1175,13 @@ Do not spam or ping staff.
 
 function getPanelDescription(guildId, which) {
   const cfg = getGuildConfig(guildId);
-  const prem = getPremiumState(guildId);
-  if (prem?.isPremium && cfg.panelText) {
+
+  // Panel text editing is FREE (stored per-server).
+  if (cfg.panelText) {
     if (which === "support" && cfg.panelText.supportDescription) return String(cfg.panelText.supportDescription);
     if (which === "trade" && cfg.panelText.tradeDescription) return String(cfg.panelText.tradeDescription);
   }
+
   return which === "support" ? DEFAULT_SUPPORT_PANEL_DESC : DEFAULT_TRADE_PANEL_DESC;
 }
 
@@ -1153,10 +1204,8 @@ function buildSetupEmbed(guild, cfg) {
     .setDescription(
       "This setup is **per-server** and saves automatically.\n" +
       "First **enable** what you want (Support / Trade / Logs), then set where it should go.\n\n" +
-      (prem?.isPremium
-        ? "⭐ **Premium unlocked** — you can edit panel descriptions from **Premium Settings**."
-        : "🔒 **Premium locked** — redeem a key with `?premium-redeem <key>` to unlock panel text editing.")
-    )
+      "🆓 **Free editor:** you can edit Support/Trade panel text + menu labels from **Panel Editor**.\n" +
+       (prem?.isPremium ? "⭐ **Premium unlocked:** branding, transcripts, ticket name, pings, auto-close, etc." : "🔒 **Premium locked:** redeem with `?premium-redeem <key>` to unlock premium-only features."))
     .addFields(
       {
         name: `Support (${supportStatus})`,
@@ -1222,6 +1271,7 @@ function buildSetupMainComponents(ownerId) {
 
   const row2 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`setup_set_roles:${ownerId}`).setLabel("Set Roles").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`setup_panel_editor:${ownerId}`).setLabel("Panel Editor").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`setup_premium_settings:${ownerId}`).setLabel("Premium Settings").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`setup_done:${ownerId}`).setLabel("Done").setStyle(ButtonStyle.Success)
   );
@@ -1966,17 +2016,25 @@ if (content.startsWith("?botavatar ")) {
       return message.reply("❌ Support category is not set. Server owner: run `?setup` and set Support Category.").catch(() => {});
     }
 
-    const menu = buildSupportMenu();
+    const menu = buildSupportMenu(message.guild.id);
 
     const brand = getPremiumState(message.guild.id);
 
+    const ui = cfg.panelUI?.support || {};
+    const title = (typeof ui.title === "string" && ui.title.trim())
+      ? ui.title.trim()
+      : `🛠️ ${getPremiumState(message.guild.id).branding.name} — Support Panel`;
+
     const embed = new EmbedBuilder()
-      .setTitle(`🛠️ ${getPremiumState(message.guild.id).branding.name} — Support Panel`)
+      .setTitle(title.slice(0, 256))
       .setDescription(getPanelDescription(message.guild.id, "support"))
       .setColor("#2F3136")
       .setFooter({ text: "Nozzarri services | Professional support" });
 
-    applyBranding(embed, message.guild.id);
+    if (ui.imageUrl && looksLikeUrl(ui.imageUrl)) {
+      embed.setThumbnail(ui.imageUrl);
+    }
+
     applyBranding(embed, message.guild.id);
     await message.channel.send({ embeds: [embed], components: [menu] });
   }
@@ -1995,13 +2053,22 @@ if (content.startsWith("?botavatar ")) {
       return message.reply("❌ Trade category is not set. Server owner: run `?setup` and set Trade Category.").catch(() => {});
     }
 
-    const menu = buildTradeMenu();
+    const menu = buildTradeMenu(message.guild.id);
+
+    const ui = cfg.panelUI?.trade || {};
+    const title = (typeof ui.title === "string" && ui.title.trim())
+      ? ui.title.trim()
+      : "🛡️ Nozzarri Tickets — Official Trade Panel 🐉";
 
     const embed = new EmbedBuilder()
-      .setTitle("🛡️ Nozzarri Tickets — Official Trade Panel 🐉")
+      .setTitle(title.slice(0, 256))
       .setDescription(getPanelDescription(message.guild.id, "trade"))
       .setColor("#9b59b6")
       .setFooter({ text: "Nozzarri services | Official Trade Panel" });
+
+    if (ui.imageUrl && looksLikeUrl(ui.imageUrl)) {
+      embed.setThumbnail(ui.imageUrl);
+    }
 
     applyBranding(embed, message.guild.id);
     await message.channel.send({ embeds: [embed], components: [menu] });
@@ -3026,28 +3093,50 @@ After activation, open a ticket and you will see the premium ping/name features 
 
     // Premium settings panel (edit panel descriptions etc.)
     if (action === "setup_premium_settings") {
-      const prem = getPremiumState(guild.id);
-      if (!prem?.isPremium) {
-        return safeUpdate(interaction, { content: "🔒 Premium is not unlocked for this server. Use `?premium-redeem <key>`.", ephemeral: true });
-      }
+      // Open the same menu as ?premium (private panel)
+      const payload = buildPremiumPanelPayload(guild, ownerId);
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`setup_edit_support_desc:${ownerId}`).setLabel("Edit Support Description").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`setup_edit_trade_desc:${ownerId}`).setLabel("Edit Trade Description").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`setup_reset_panel_text:${ownerId}`).setLabel("Reset Text").setStyle(ButtonStyle.Danger)
-      );
-
-      const embed = new EmbedBuilder()
-        .setTitle("⭐ Premium Setup")
-        .setColor("#f1c40f")
-        .setDescription(
-          "Here you can customize your **Support** / **Trade** panel descriptions.\n" +
-          "These descriptions are used for the `?support` and `?trade` panels."
-        );
-
-      return safeUpdate(interaction, { embeds: [embed], components: [buildSetupBackRow(ownerId), row] });
+      // Add a back button to return to setup
+      const back = buildSetupBackRow(ownerId);
+      const comps = Array.isArray(payload.components) ? payload.components : [];
+      return safeUpdate(interaction, { ...payload, components: [back, ...comps] });
     }
 
+
+    if (action === "setup_panel_editor") {
+      const cfg = getGuildConfig(guild.id);
+
+      const embed = new EmbedBuilder()
+        .setTitle("🧩 Panel Editor (Free)")
+        .setColor("#2ecc71")
+        .setDescription(
+          "Edit how your **Support** and **Trade** panels look.\n\n" +
+          "✅ You can change:\n" +
+          "• Panel description text\n" +
+          "• Panel title\n" +
+          "• Thumbnail image URL (upload an image to Discord and copy the image link)\n" +
+          "• Menu placeholder + option label + option description\n\n" +
+          "Note: Discord select menus do **not** support colors. Button colors can only be changed for button panels."
+        );
+
+      const row1 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`setup_edit_support_desc:${ownerId}`).setLabel("Edit Support Text").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`setup_edit_trade_desc:${ownerId}`).setLabel("Edit Trade Text").setStyle(ButtonStyle.Primary)
+      );
+
+      const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`setup_edit_panelui_support:${ownerId}`).setLabel("Edit Support Layout").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`setup_edit_panelui_trade:${ownerId}`).setLabel("Edit Trade Layout").setStyle(ButtonStyle.Secondary)
+      );
+
+      const row3 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`setup_reset_panel_support:${ownerId}`).setLabel("Reset Support").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`setup_reset_panel_trade:${ownerId}`).setLabel("Reset Trade").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`setup_back_main:${ownerId}`).setLabel("Back").setStyle(ButtonStyle.Success)
+      );
+
+      return safeUpdate(interaction, { embeds: [embed], components: [row1, row2, row3] });
+    }
     if (action === "setup_reset_panel_text") {
       const prem = getPremiumState(guild.id);
       if (!prem?.isPremium) {
@@ -3059,12 +3148,7 @@ After activation, open a ticket and you will see the premium ping/name features 
     }
 
     if (action === "setup_edit_support_desc" || action === "setup_edit_trade_desc") {
-      const prem = getPremiumState(guild.id);
-      if (!prem?.isPremium) {
-        return safeUpdate(interaction, { content: "🔒 Premium is not unlocked for this server.", ephemeral: true });
-      }
-
-      const which = action === "setup_edit_support_desc" ? "support" : "trade";
+const which = action === "setup_edit_support_desc" ? "support" : "trade";
       const cfg = getGuildConfig(guild.id);
       const current = which === "support"
         ? (cfg.panelText?.supportDescription || DEFAULT_SUPPORT_PANEL_DESC)
@@ -3086,6 +3170,64 @@ After activation, open a ticket and you will see the premium ping/name features 
       return interaction.showModal(modal).catch(() => {});
     }
 
+
+    if (action === "setup_edit_panelui_support" || action === "setup_edit_panelui_trade") {
+      const which = action === "setup_edit_panelui_support" ? "support" : "trade";
+      const cfg = getGuildConfig(guild.id);
+      const ui = (which === "support" ? cfg.panelUI?.support : cfg.panelUI?.trade) || {};
+      const currentTitle = (typeof ui.title === "string" && ui.title.trim())
+        ? ui.title.trim()
+        : (which === "support" ? "🛠️ Support Ticket" : "🤝 Trade Help");
+      const currentImg = (typeof ui.imageUrl === "string" && ui.imageUrl.trim()) ? ui.imageUrl.trim() : "";
+      const currentPlaceholder = (typeof ui.menuPlaceholder === "string" && ui.menuPlaceholder.trim())
+        ? ui.menuPlaceholder.trim()
+        : (which === "support" ? "🛠️ Open a support ticket." : "🤝 Request trade help.");
+      const currentOptLabel = (typeof ui.optionLabel === "string" && ui.optionLabel.trim())
+        ? ui.optionLabel.trim()
+        : (which === "support" ? "🛠️ Support" : "🤝 Trade Help");
+      const currentOptDesc = (typeof ui.optionDescription === "string" && ui.optionDescription.trim())
+        ? ui.optionDescription.trim()
+        : (which === "support" ? "Get help from our staff" : "Request trade assistance for safe trading");
+
+      const modal = new ModalBuilder()
+        .setCustomId(`setup_modal_panelui_${which}:${ownerId}`)
+        .setTitle(which === "support" ? "Edit Support Layout" : "Edit Trade Layout");
+
+      const t1 = new TextInputBuilder().setCustomId("title").setLabel("Panel title (embed title)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(256).setValue(currentTitle.slice(0,256));
+      const t2 = new TextInputBuilder().setCustomId("image").setLabel("Thumbnail image URL (optional)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(400).setValue(currentImg.slice(0,400));
+      const t3 = new TextInputBuilder().setCustomId("placeholder").setLabel("Menu placeholder").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(currentPlaceholder.slice(0,100));
+      const t4 = new TextInputBuilder().setCustomId("optlabel").setLabel("Option label").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(currentOptLabel.slice(0,100));
+      const t5 = new TextInputBuilder().setCustomId("optdesc").setLabel("Option description").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(currentOptDesc.slice(0,100));
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(t1),
+        new ActionRowBuilder().addComponents(t2),
+        new ActionRowBuilder().addComponents(t3),
+        new ActionRowBuilder().addComponents(t4),
+        new ActionRowBuilder().addComponents(t5),
+      );
+      return interaction.showModal(modal).catch(() => {});
+    }
+
+    if (action === "setup_reset_panel_support" || action === "setup_reset_panel_trade") {
+      const which = action === "setup_reset_panel_support" ? "support" : "trade";
+      const cfg = getGuildConfig(guild.id);
+
+      const nextPanelText = { ...cfg.panelText };
+      if (which === "support") nextPanelText.supportDescription = null;
+      if (which === "trade") nextPanelText.tradeDescription = null;
+
+      const nextUI = { ...cfg.panelUI, support: { ...(cfg.panelUI?.support||{}) }, trade: { ...(cfg.panelUI?.trade||{}) } };
+      if (which === "support") nextUI.support = { title: null, imageUrl: null, menuPlaceholder: null, optionLabel: null, optionDescription: null };
+      if (which === "trade") nextUI.trade = { title: null, imageUrl: null, menuPlaceholder: null, optionLabel: null, optionDescription: null };
+
+      saveGuildConfig(guild.id, { panelText: nextPanelText, panelUI: nextUI });
+      return safeUpdate(interaction, { content: `✅ Reset ${which} panel text + layout to defaults.`, ephemeral: true });
+    }
+
+    if (action === "setup_back_main") {
+      return safeUpdate(interaction, buildSetupMainPayload(guild, ownerId));
+    }
 
     // Show a category selector for support
     if (action === "setup_set_support") {
@@ -3471,7 +3613,7 @@ Only **you** can see it.`)
     await interaction.showModal(modal);
     setTimeout(async () => {
       try {
-        const row = type === "support" ? buildSupportMenu() : buildTradeMenu();
+        const row = type === "support" ? buildSupportMenu(interaction.guildId) : buildTradeMenu(interaction.guildId);
         if (interaction.message && interaction.message.edit) {
           await interaction.message.edit({ components: [row] }).catch(() => {});
         }
@@ -3491,11 +3633,6 @@ Only **you** can see it.`)
       return safeUpdate(interaction, { content: "⛔ Only the setup owner can use this.", ephemeral: true });
     }
 
-    const prem = getPremiumState(interaction.guild.id);
-    if (!prem?.isPremium) {
-      return safeUpdate(interaction, { content: "🔒 Premium is not unlocked for this server.", ephemeral: true });
-    }
-
     const which = id.replace("setup_modal_paneldesc_", ""); // support | trade
     const desc = interaction.fields.getTextInputValue("desc");
 
@@ -3508,6 +3645,40 @@ Only **you** can see it.`)
 
     return safeUpdate(interaction, { content: "✅ Saved! Your panel text was updated.", ephemeral: true }).catch(() => {});
   }
+
+  if (interaction.isModalSubmit() && interaction.customId && interaction.customId.startsWith("setup_modal_panelui_")) {
+    const [id, ownerId] = interaction.customId.split(":");
+    if (!interaction.guild) return safeUpdate(interaction, { content: "Guild only.", ephemeral: true });
+    if (interaction.user.id !== ownerId) {
+      return safeUpdate(interaction, { content: "⛔ Not your setup panel.", ephemeral: true });
+    }
+
+    const which = id.replace("setup_modal_panelui_", ""); // support | trade
+
+    const title = interaction.fields.getTextInputValue("title");
+    const image = interaction.fields.getTextInputValue("image");
+    const placeholder = interaction.fields.getTextInputValue("placeholder");
+    const optlabel = interaction.fields.getTextInputValue("optlabel");
+    const optdesc = interaction.fields.getTextInputValue("optdesc");
+
+    const cfg = getGuildConfig(interaction.guild.id);
+    const nextUI = { ...cfg.panelUI, support: { ...(cfg.panelUI?.support||{}) }, trade: { ...(cfg.panelUI?.trade||{}) } };
+    const patch = {
+      title: title?.trim() || null,
+      imageUrl: (image && image.trim()) ? image.trim() : null,
+      menuPlaceholder: placeholder?.trim() || null,
+      optionLabel: optlabel?.trim() || null,
+      optionDescription: optdesc?.trim() || null
+    };
+
+    if (which === "support") nextUI.support = { ...nextUI.support, ...patch };
+    else nextUI.trade = { ...nextUI.trade, ...patch };
+
+    saveGuildConfig(interaction.guild.id, { panelUI: nextUI });
+
+    return safeUpdate(interaction, { content: `✅ Saved ${which} panel layout.`, ephemeral: true });
+  }
+
 
   // Modal submit -> create ticket
   if (
@@ -3680,7 +3851,7 @@ const categoryId = type === "Support" ? cfg.supportCategoryId : cfg.mmCategoryId
       try {
         const msgs = await interaction.channel.messages.fetch({ limit: 50 }).catch(() => null);
         if (msgs) {
-          const newMenuRow = type === "Support" ? buildSupportMenu() : buildTradeMenu();
+          const newMenuRow = type === "Support" ? buildSupportMenu(interaction.guildId) : buildTradeMenu(interaction.guildId);
           for (const m of msgs.values()) {
             if (m.author && m.author.id === client.user.id && m.components && m.components.length) {
               const hasSelect = m.components.some(c =>
