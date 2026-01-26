@@ -660,7 +660,13 @@ function getDefaultConfig() {
     panelUI: {
       support: {
         title: null,
+        // legacy: imageUrl was used as thumbnail in older versions
         imageUrl: null,
+        thumbnailUrl: null,
+        bigImageUrl: null,
+        colorHex: null,
+        footerText: null,
+        optionEmoji: null,
         menuPlaceholder: null,
         optionLabel: null,
         optionDescription: null
@@ -668,6 +674,11 @@ function getDefaultConfig() {
       trade: {
         title: null,
         imageUrl: null,
+        thumbnailUrl: null,
+        bigImageUrl: null,
+        colorHex: null,
+        footerText: null,
+        optionEmoji: null,
         menuPlaceholder: null,
         optionLabel: null,
         optionDescription: null
@@ -1075,6 +1086,8 @@ function buildSupportMenu(guildId) {
     ? ui.optionDescription.trim()
     : "Get help from our staff";
 
+  const optEmoji = (typeof ui.optionEmoji === "string" && ui.optionEmoji.trim()) ? ui.optionEmoji.trim() : "";
+
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(customId)
@@ -1083,7 +1096,8 @@ function buildSupportMenu(guildId) {
         {
           label: optLabel.slice(0, 100),
           value: "support",
-          description: optDesc.slice(0, 100)
+          description: optDesc.slice(0, 100),
+          ...(optEmoji ? { emoji: optEmoji } : {})
         }
       ])
   );
@@ -1105,6 +1119,7 @@ function buildTradeMenu(guildId) {
   const optDesc = (typeof ui.optionDescription === "string" && ui.optionDescription.trim())
     ? ui.optionDescription.trim()
     : "Request trade assistance for safe trading";
+  const optEmoji = (typeof ui.optionEmoji === "string" && ui.optionEmoji.trim()) ? ui.optionEmoji.trim() : "";
 
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
@@ -1114,7 +1129,8 @@ function buildTradeMenu(guildId) {
         {
           label: optLabel.slice(0, 100),
           value: "trade",
-          description: optDesc.slice(0, 100)
+          description: optDesc.slice(0, 100),
+          ...(optEmoji ? { emoji: optEmoji } : {})
         }
       ])
   );
@@ -1252,6 +1268,12 @@ function buildSetupEmbed(guild, cfg) {
       }
     )
     .setFooter({ text: "Admins/Owner • Run ?setup anytime" });
+
+    // Optional color override
+    if (ui.colorHex && /^#?[0-9a-fA-F]{6}$/.test(String(ui.colorHex).trim())) {
+      const hex = String(ui.colorHex).trim().replace(/^#/, "");
+      embed.setColor(`#${hex}`);
+    }
 }
 
 
@@ -2029,10 +2051,17 @@ if (content.startsWith("?botavatar ")) {
       .setTitle(title.slice(0, 256))
       .setDescription(getPanelDescription(message.guild.id, "support"))
       .setColor("#2F3136")
-      .setFooter({ text: "Nozzarri services | Professional support" });
+      .setFooter({ text: (ui.footerText && String(ui.footerText).trim()) ? String(ui.footerText).trim() : "Nozzarri services | Professional support" });
 
-    if (ui.imageUrl && looksLikeUrl(ui.imageUrl)) {
+    if (ui.thumbnailUrl && looksLikeUrl(ui.thumbnailUrl)) {
+      embed.setThumbnail(ui.thumbnailUrl);
+    } else if (ui.imageUrl && looksLikeUrl(ui.imageUrl)) {
+      // legacy support
       embed.setThumbnail(ui.imageUrl);
+    }
+
+    if (ui.bigImageUrl && looksLikeUrl(ui.bigImageUrl)) {
+      embed.setImage(ui.bigImageUrl);
     }
 
     applyBranding(embed, message.guild.id);
@@ -2064,10 +2093,17 @@ if (content.startsWith("?botavatar ")) {
       .setTitle(title.slice(0, 256))
       .setDescription(getPanelDescription(message.guild.id, "trade"))
       .setColor("#9b59b6")
-      .setFooter({ text: "Nozzarri services | Official Trade Panel" });
+      .setFooter({ text: (ui.footerText && String(ui.footerText).trim()) ? String(ui.footerText).trim() : "Nozzarri services | Official Trade Panel" });
 
-    if (ui.imageUrl && looksLikeUrl(ui.imageUrl)) {
+    if (ui.thumbnailUrl && looksLikeUrl(ui.thumbnailUrl)) {
+      embed.setThumbnail(ui.thumbnailUrl);
+    } else if (ui.imageUrl && looksLikeUrl(ui.imageUrl)) {
+      // legacy support
       embed.setThumbnail(ui.imageUrl);
+    }
+
+    if (ui.bigImageUrl && looksLikeUrl(ui.bigImageUrl)) {
+      embed.setImage(ui.bigImageUrl);
     }
 
     applyBranding(embed, message.guild.id);
@@ -2106,6 +2142,12 @@ client.on("messageCreate", async message => {
           "Only **you** will see the help panel."
       )
       .setFooter({ text: "Nozzarri Tickets • Secure • Professional" });
+
+    // Optional color override
+    if (ui.colorHex && /^#?[0-9a-fA-F]{6}$/.test(String(ui.colorHex).trim())) {
+      const hex = String(ui.colorHex).trim().replace(/^#/, "");
+      embed.setColor(`#${hex}`);
+    }
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -3129,13 +3171,23 @@ After activation, open a ticket and you will see the premium ping/name features 
         new ButtonBuilder().setCustomId(`setup_edit_panelui_trade:${ownerId}`).setLabel("Edit Trade Layout").setStyle(ButtonStyle.Secondary)
       );
 
+      const rowAdv = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`setup_edit_paneladv_support:${ownerId}`).setLabel("Advanced Support").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`setup_edit_paneladv_trade:${ownerId}`).setLabel("Advanced Trade").setStyle(ButtonStyle.Secondary)
+      );
+
+      const rowPost = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`setup_post_support_panel:${ownerId}`).setLabel("Post Support Panel Here").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`setup_post_trade_panel:${ownerId}`).setLabel("Post Trade Panel Here").setStyle(ButtonStyle.Success)
+      );
+
       const row3 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`setup_reset_panel_support:${ownerId}`).setLabel("Reset Support").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId(`setup_reset_panel_trade:${ownerId}`).setLabel("Reset Trade").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId(`setup_back_main:${ownerId}`).setLabel("Back").setStyle(ButtonStyle.Success)
       );
 
-      return safeUpdate(interaction, { embeds: [embed], components: [row1, row2, row3] });
+      return safeUpdate(interaction, { embeds: [embed], components: [row1, row2, rowAdv, rowPost, row3] });
     }
     if (action === "setup_reset_panel_text") {
       const prem = getPremiumState(guild.id);
@@ -3171,7 +3223,84 @@ const which = action === "setup_edit_support_desc" ? "support" : "trade";
     }
 
 
-    if (action === "setup_edit_panelui_support" || action === "setup_edit_panelui_trade") {
+    
+    if (action === "setup_post_support_panel" || action === "setup_post_trade_panel") {
+      const which = action === "setup_post_support_panel" ? "support" : "trade";
+      const cfg = getGuildConfig(guild.id);
+
+      // Validate config
+      if (which === "support") {
+        if (!cfg.supportEnabled) return safeUpdate(interaction, { content: "❌ Support tickets are disabled.", ephemeral: true });
+        if (!cfg.supportCategoryId) return safeUpdate(interaction, { content: "❌ Support category is not set.", ephemeral: true });
+      } else {
+        if (!cfg.tradeEnabled) return safeUpdate(interaction, { content: "❌ Trade tickets are disabled.", ephemeral: true });
+        if (!cfg.mmCategoryId) return safeUpdate(interaction, { content: "❌ Trade category is not set.", ephemeral: true });
+      }
+
+      const menu = which === "support" ? buildSupportMenu(guild.id) : buildTradeMenu(guild.id);
+      const ui = which === "support" ? (cfg.panelUI?.support || {}) : (cfg.panelUI?.trade || {});
+      const titleDefault = which === "support"
+        ? `🛠️ ${getPremiumState(guild.id).branding.name} — Support Panel`
+        : "🛡️ Nozzarri Tickets — Official Trade Panel 🐉";
+
+      const embed = new EmbedBuilder()
+        .setTitle(((ui.title && String(ui.title).trim()) ? String(ui.title).trim() : titleDefault).slice(0, 256))
+        .setDescription(getPanelDescription(guild.id, which))
+        .setFooter({ text: (ui.footerText && String(ui.footerText).trim()) ? String(ui.footerText).trim() : (which === "support" ? "Nozzarri services | Professional support" : "Nozzarri services | Official Trade Panel") });
+
+      // Color override
+      if (ui.colorHex && /^#?[0-9a-fA-F]{6}$/.test(String(ui.colorHex).trim())) {
+        const hex = String(ui.colorHex).trim().replace(/^#/, "");
+        embed.setColor(`#${hex}`);
+      } else {
+        embed.setColor(which === "support" ? "#2F3136" : "#9b59b6");
+      }
+
+      if (ui.thumbnailUrl && looksLikeUrl(ui.thumbnailUrl)) embed.setThumbnail(ui.thumbnailUrl);
+      if (ui.bigImageUrl && looksLikeUrl(ui.bigImageUrl)) embed.setImage(ui.bigImageUrl);
+
+      applyBranding(embed, guild.id);
+
+      // Post into the channel where the setup panel exists
+      const ch = interaction.channel || interaction.message?.channel;
+      if (!ch || !ch.send) return safeUpdate(interaction, { content: "❌ I can't post in this channel.", ephemeral: true });
+
+      await ch.send({ embeds: [embed], components: [menu] }).catch(() => {});
+      return safeUpdate(interaction, { content: `✅ Posted the **${which}** panel in this channel.`, ephemeral: true });
+    }
+
+    if (action === "setup_edit_paneladv_support" || action === "setup_edit_paneladv_trade") {
+      const which = action === "setup_edit_paneladv_support" ? "support" : "trade";
+      const cfg = getGuildConfig(guild.id);
+      const ui = (which === "support" ? cfg.panelUI?.support : cfg.panelUI?.trade) || {};
+
+      const currentColor = (typeof ui.colorHex === "string" && ui.colorHex.trim()) ? ui.colorHex.trim() : "";
+      const currentThumb = (typeof ui.thumbnailUrl === "string" && ui.thumbnailUrl.trim()) ? ui.thumbnailUrl.trim() : (typeof ui.imageUrl === "string" && ui.imageUrl.trim() ? ui.imageUrl.trim() : "");
+      const currentImage = (typeof ui.bigImageUrl === "string" && ui.bigImageUrl.trim()) ? ui.bigImageUrl.trim() : "";
+      const currentFooter = (typeof ui.footerText === "string" && ui.footerText.trim()) ? ui.footerText.trim() : "";
+      const currentEmoji = (typeof ui.optionEmoji === "string" && ui.optionEmoji.trim()) ? ui.optionEmoji.trim() : "";
+
+      const modal = new ModalBuilder()
+        .setCustomId(`setup_modal_paneladv_${which}:${ownerId}`)
+        .setTitle(which === "support" ? "Advanced Support Panel" : "Advanced Trade Panel");
+
+      const c1 = new TextInputBuilder().setCustomId("color").setLabel("Embed color HEX (example: #9b59b6) (optional)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(7).setValue(currentColor.slice(0,7));
+      const c2 = new TextInputBuilder().setCustomId("thumb").setLabel("Thumbnail URL (optional)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(400).setValue(currentThumb.slice(0,400));
+      const c3 = new TextInputBuilder().setCustomId("image").setLabel("Big Image URL (optional)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(400).setValue(currentImage.slice(0,400));
+      const c4 = new TextInputBuilder().setCustomId("footer").setLabel("Footer text (optional)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(200).setValue(currentFooter.slice(0,200));
+      const c5 = new TextInputBuilder().setCustomId("emoji").setLabel("Option emoji (optional) (example: 😄 or <:name:id>)").setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(60).setValue(currentEmoji.slice(0,60));
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(c1),
+        new ActionRowBuilder().addComponents(c2),
+        new ActionRowBuilder().addComponents(c3),
+        new ActionRowBuilder().addComponents(c4),
+        new ActionRowBuilder().addComponents(c5),
+      );
+      return interaction.showModal(modal).catch(() => {});
+    }
+
+if (action === "setup_edit_panelui_support" || action === "setup_edit_panelui_trade") {
       const which = action === "setup_edit_panelui_support" ? "support" : "trade";
       const cfg = getGuildConfig(guild.id);
       const ui = (which === "support" ? cfg.panelUI?.support : cfg.panelUI?.trade) || {};
@@ -3218,8 +3347,8 @@ const which = action === "setup_edit_support_desc" ? "support" : "trade";
       if (which === "trade") nextPanelText.tradeDescription = null;
 
       const nextUI = { ...cfg.panelUI, support: { ...(cfg.panelUI?.support||{}) }, trade: { ...(cfg.panelUI?.trade||{}) } };
-      if (which === "support") nextUI.support = { title: null, imageUrl: null, menuPlaceholder: null, optionLabel: null, optionDescription: null };
-      if (which === "trade") nextUI.trade = { title: null, imageUrl: null, menuPlaceholder: null, optionLabel: null, optionDescription: null };
+      if (which === "support") nextUI.support = { title: null, imageUrl: null, thumbnailUrl: null, bigImageUrl: null, colorHex: null, footerText: null, optionEmoji: null, menuPlaceholder: null, optionLabel: null, optionDescription: null };
+      if (which === "trade") nextUI.trade = { title: null, imageUrl: null, thumbnailUrl: null, bigImageUrl: null, colorHex: null, footerText: null, optionEmoji: null, menuPlaceholder: null, optionLabel: null, optionDescription: null };
 
       saveGuildConfig(guild.id, { panelText: nextPanelText, panelUI: nextUI });
       return safeUpdate(interaction, { content: `✅ Reset ${which} panel text + layout to defaults.`, ephemeral: true });
@@ -3679,6 +3808,51 @@ Only **you** can see it.`)
     return safeUpdate(interaction, { content: `✅ Saved ${which} panel layout.`, ephemeral: true });
   }
 
+
+
+  if (interaction.isModalSubmit() && interaction.customId && interaction.customId.startsWith("setup_modal_paneladv_")) {
+    const [id, ownerId] = interaction.customId.split(":");
+    if (!interaction.guild) return safeUpdate(interaction, { content: "Guild only.", ephemeral: true });
+    if (interaction.user.id !== ownerId) {
+      return safeUpdate(interaction, { content: "⛔ Not your setup panel.", ephemeral: true });
+    }
+
+    const which = id.replace("setup_modal_paneladv_", ""); // support | trade
+
+    const color = String(interaction.fields.getTextInputValue("color") || "").trim();
+    const thumb = String(interaction.fields.getTextInputValue("thumb") || "").trim();
+    const image = String(interaction.fields.getTextInputValue("image") || "").trim();
+    const footer = String(interaction.fields.getTextInputValue("footer") || "").trim();
+    const emoji = String(interaction.fields.getTextInputValue("emoji") || "").trim();
+
+    // validate color
+    let colorHex = null;
+    if (color) {
+      const c = color.startsWith("#") ? color : `#${color}`;
+      if (!/^#[0-9a-fA-F]{6}$/.test(c)) {
+        return safeUpdate(interaction, { content: "❌ Invalid HEX color. Example: `#9b59b6`", ephemeral: true });
+      }
+      colorHex = c;
+    }
+
+    const cfg = getGuildConfig(interaction.guild.id);
+    const nextUI = { ...cfg.panelUI, support: { ...(cfg.panelUI?.support||{}) }, trade: { ...(cfg.panelUI?.trade||{}) } };
+
+    const patch = {
+      colorHex: colorHex,
+      thumbnailUrl: thumb || null,
+      // Big embed image
+      bigImageUrl: image || null,
+      footerText: footer || null,
+      optionEmoji: emoji || null
+    };
+
+    if (which === "support") nextUI.support = { ...nextUI.support, ...patch };
+    else nextUI.trade = { ...nextUI.trade, ...patch };
+
+    saveGuildConfig(interaction.guild.id, { panelUI: nextUI });
+    return safeUpdate(interaction, { content: `✅ Saved advanced ${which} panel settings.`, ephemeral: true });
+  }
 
   // Modal submit -> create ticket
   if (
