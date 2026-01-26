@@ -3101,7 +3101,14 @@ After activation, open a ticket and you will see the premium ping/name features 
 
     // Ack immediately so slow disks / JSON writes can't cause "Interaction failed".
     // IMPORTANT: do NOT ack if we are about to open a modal (modals must be the first response).
-    const opensModal = (action === "setup_edit_support_desc" || action === "setup_edit_trade_desc");
+    const opensModal = (
+      action === "setup_edit_support_desc" ||
+      action === "setup_edit_trade_desc" ||
+      action === "setup_edit_panelui_support" ||
+      action === "setup_edit_panelui_trade" ||
+      action === "setup_edit_paneladv_support" ||
+      action === "setup_edit_paneladv_trade"
+    );
     if (!opensModal && !interaction.deferred && !interaction.replied) {
       await interaction.deferUpdate().catch(() => {});
     }
