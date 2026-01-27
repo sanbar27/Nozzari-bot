@@ -62,6 +62,28 @@ async function safeUpdate(interaction, payload) {
     return null;
   }
 }
+
+// Try to open a modal WITHOUT causing "Interaction failed".
+// If showModal fails (missing perms, already-acked interaction, or Discord hiccup),
+// we fall back to an ephemeral reply so users see an error instead of nothing.
+async function tryShowModal(interaction, modal) {
+  try {
+    await interaction.showModal(modal);
+    return true;
+  } catch (e) {
+    try {
+      const msg = "❌ I couldn't open that editor (Discord rejected the modal). Try again once, and if it still fails, check the bot logs for the error.";
+      if (!interaction.deferred && !interaction.replied) {
+        await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+      } else if (interaction.editReply) {
+        await interaction.editReply({ content: msg }).catch(() => {});
+      }
+    } catch (_) {}
+    console.error("[tryShowModal] showModal failed:", e);
+    return false;
+  }
+}
+
 // ----------------------------------------------------------
 process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err));
 process.on('uncaughtException', (err) => console.error('[uncaughtException]', err));
@@ -2517,6 +2539,7 @@ After activation, open a ticket and you will see the premium ping/name features 
     // Premium Custom Buttons (in ?premium → ✨ Commands)
     // ===============================
     if (action === "prem_ticketname") {
+      try {
       const modal = new ModalBuilder()
         .setCustomId(`prem_modal_ticketname:${openerId}`)
         .setTitle("Ticket Channel Name Template");
@@ -2530,10 +2553,23 @@ After activation, open a ticket and you will see the premium ping/name features 
         .setValue(String(prem.features.ticketNameTemplate || "ticket-{user}").slice(0, 80));
 
       modal.addComponents(new ActionRowBuilder().addComponents(input));
-      return interaction.showModal(modal).catch(() => {});
-    }
+      await tryShowModal(interaction, modal);
+      return;
+
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
 
     if (action === "prem_welcome") {
+      try {
       const modal = new ModalBuilder()
         .setCustomId(`prem_modal_welcome:${openerId}`)
         .setTitle("Ticket Welcome Message");
@@ -2547,10 +2583,23 @@ After activation, open a ticket and you will see the premium ping/name features 
         .setValue(String(prem.features.welcomeMessage || "").slice(0, 1500));
 
       modal.addComponents(new ActionRowBuilder().addComponents(input));
-      return interaction.showModal(modal).catch(() => {});
-    }
+      await tryShowModal(interaction, modal);
+      return;
+
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
 
     if (action === "prem_botnick") {
+      try {
       const modal = new ModalBuilder()
         .setCustomId(`prem_modal_botnick:${openerId}`)
         .setTitle("Bot Nickname (Server)");
@@ -2564,10 +2613,23 @@ After activation, open a ticket and you will see the premium ping/name features 
         .setValue(String(prem.features.botNickname || "").slice(0, 32));
 
       modal.addComponents(new ActionRowBuilder().addComponents(input));
-      return interaction.showModal(modal).catch(() => {});
-    }
+      await tryShowModal(interaction, modal);
+      return;
+
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
 
     if (action === "prem_autoclose") {
+      try {
       const modal = new ModalBuilder()
         .setCustomId(`prem_modal_autoclose:${openerId}`)
         .setTitle("Auto Close Tickets");
@@ -2581,10 +2643,23 @@ After activation, open a ticket and you will see the premium ping/name features 
         .setValue(prem.features.autoCloseMinutes ? String(prem.features.autoCloseMinutes) : "0");
 
       modal.addComponents(new ActionRowBuilder().addComponents(input));
-      return interaction.showModal(modal).catch(() => {});
-    }
+      await tryShowModal(interaction, modal);
+      return;
+
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
 
     if (action === "prem_brand") {
+      try {
       const modal = new ModalBuilder()
         .setCustomId(`prem_modal_brand:${openerId}`)
         .setTitle("Branding");
@@ -2618,8 +2693,20 @@ After activation, open a ticket and you will see the premium ping/name features 
         new ActionRowBuilder().addComponents(icon),
         new ActionRowBuilder().addComponents(accent)
       );
-      return interaction.showModal(modal).catch(() => {});
-    }
+      await tryShowModal(interaction, modal);
+      return;
+
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
 
     if (action === "prem_pings") {
       const s = prem.features.ticketPings?.support || { roles:[], here:false, everyone:false };
@@ -2964,6 +3051,7 @@ After activation, open a ticket and you will see the premium ping/name features 
 
     // ping roles
     if (action === "premcmd_ping_add") {
+      try {
       const modal = new ModalBuilder().setCustomId(`premcmd_ping_add_modal:${openerId}`).setTitle("Add Ping Role");
       const input = new TextInputBuilder()
         .setCustomId("role")
@@ -2973,9 +3061,22 @@ After activation, open a ticket and you will see the premium ping/name features 
         .setMaxLength(64)
         .setPlaceholder("@Support or 123456789012345678");
       modal.addComponents(new ActionRowBuilder().addComponents(input));
-      return interaction.showModal(modal);
-    }
+      await tryShowModal(interaction, modal);
+      return;
+
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
     if (action === "premcmd_ping_remove") {
+      try {
       const modal = new ModalBuilder().setCustomId(`premcmd_ping_remove_modal:${openerId}`).setTitle("Remove Ping Role");
       const input = new TextInputBuilder()
         .setCustomId("role")
@@ -2985,8 +3086,20 @@ After activation, open a ticket and you will see the premium ping/name features 
         .setMaxLength(64)
         .setPlaceholder("@Support or 123456789012345678");
       modal.addComponents(new ActionRowBuilder().addComponents(input));
-      return interaction.showModal(modal);
-    }
+      await tryShowModal(interaction, modal);
+      return;
+
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
     if (action === "premcmd_ping_clear") {
       savePremiumState(interaction.guild.id, { features: { pingRoleIds: [] } });
       return safeUpdate(interaction, buildPremiumCommandsPayload(interaction.guild, openerId)).catch(() => {});
@@ -2994,6 +3107,7 @@ After activation, open a ticket and you will see the premium ping/name features 
 
     // close reasons
     if (action === "premcmd_reason_add") {
+      try {
       const modal = new ModalBuilder().setCustomId(`premcmd_reason_add_modal:${openerId}`).setTitle("Add Close Reason");
       const input = new TextInputBuilder()
         .setCustomId("reason")
@@ -3003,9 +3117,22 @@ After activation, open a ticket and you will see the premium ping/name features 
         .setMaxLength(200)
         .setPlaceholder("Example: Trade completed successfully.");
       modal.addComponents(new ActionRowBuilder().addComponents(input));
-      return interaction.showModal(modal);
-    }
+      await tryShowModal(interaction, modal);
+      return;
+
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
     if (action === "premcmd_reason_remove") {
+      try {
       const modal = new ModalBuilder().setCustomId(`premcmd_reason_remove_modal:${openerId}`).setTitle("Remove Reason");
       const input = new TextInputBuilder()
         .setCustomId("index")
@@ -3015,8 +3142,20 @@ After activation, open a ticket and you will see the premium ping/name features 
         .setMaxLength(4)
         .setPlaceholder("1");
       modal.addComponents(new ActionRowBuilder().addComponents(input));
-      return interaction.showModal(modal);
-    }
+      await tryShowModal(interaction, modal);
+      return;
+
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
 
     if (action === "premcmd_refresh") {
       return safeUpdate(interaction, buildPremiumCommandsPayload(interaction.guild, openerId)).catch(() => {});
@@ -3207,6 +3346,7 @@ After activation, open a ticket and you will see the premium ping/name features 
     }
 
     if (action === "setup_edit_support_desc" || action === "setup_edit_trade_desc") {
+      try {
 const which = action === "setup_edit_support_desc" ? "support" : "trade";
       const cfg = getGuildConfig(guild.id);
       const current = which === "support"
@@ -3226,8 +3366,20 @@ const which = action === "setup_edit_support_desc" ? "support" : "trade";
         .setValue(String(current).slice(0, 4000));
 
       modal.addComponents(new ActionRowBuilder().addComponents(input));
-      return interaction.showModal(modal).catch(() => {});
-    }
+      await tryShowModal(interaction, modal);
+      return;
+
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
 
 
     
@@ -3277,6 +3429,7 @@ const which = action === "setup_edit_support_desc" ? "support" : "trade";
     }
 
     if (action === "setup_edit_paneladv_support" || action === "setup_edit_paneladv_trade") {
+      try {
       const which = action === "setup_edit_paneladv_support" ? "support" : "trade";
       const cfg = getGuildConfig(guild.id);
       const ui = (which === "support" ? cfg.panelUI?.support : cfg.panelUI?.trade) || {};
@@ -3304,10 +3457,23 @@ const which = action === "setup_edit_support_desc" ? "support" : "trade";
         new ActionRowBuilder().addComponents(c4),
         new ActionRowBuilder().addComponents(c5),
       );
-      return interaction.showModal(modal).catch(() => {});
-    }
+      await tryShowModal(interaction, modal);
+      return;
+
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
 
 if (action === "setup_edit_panelui_support" || action === "setup_edit_panelui_trade") {
+      try {
       const which = action === "setup_edit_panelui_support" ? "support" : "trade";
       const cfg = getGuildConfig(guild.id);
       const ui = (which === "support" ? cfg.panelUI?.support : cfg.panelUI?.trade) || {};
@@ -3342,8 +3508,20 @@ if (action === "setup_edit_panelui_support" || action === "setup_edit_panelui_tr
         new ActionRowBuilder().addComponents(t4),
         new ActionRowBuilder().addComponents(t5),
       );
-      return interaction.showModal(modal).catch(() => {});
-    }
+      await tryShowModal(interaction, modal);
+      return;
+
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
 
     if (action === "setup_reset_panel_support" || action === "setup_reset_panel_trade") {
       const which = action === "setup_reset_panel_support" ? "support" : "trade";
@@ -3420,6 +3598,7 @@ if (action === "setup_edit_panelui_support" || action === "setup_edit_panelui_tr
     }
 
     if (action === "setup_done") {
+      try {
       const cfg = getGuildConfig(guild.id);
       const missing = [];
 
@@ -3445,7 +3624,18 @@ if (action === "setup_edit_panelui_support" || action === "setup_edit_panelui_tr
         ],
         components: []
       });
-    }
+    
+      } catch (e) {
+        console.error('[modal-build] failed:', e);
+        const msg = '❌ Something broke while opening that editor. Check bot logs and try again.';
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+        } else if (interaction.editReply) {
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
+        return;
+      }
+}
   }
 
   // Channel selector picks
@@ -4188,8 +4378,9 @@ const categoryId = type === "Support" ? cfg.supportCategoryId : cfg.mmCategoryId
       .setStyle(TextInputStyle.Paragraph)
       .setRequired(true);
     modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
-    return interaction.showModal(modal);
-  }
+    await tryShowModal(interaction, modal);
+      return;
+}
 
   // Handle reason modal submit
   // Handle reason modal submit
