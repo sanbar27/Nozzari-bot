@@ -4,7 +4,7 @@ require("dotenv").config();
 let DISK_FULL = false; // set true when ENOSPC happens
 
 // Build tag (helps you confirm you actually uploaded/restarted the correct file)
-const BUILD_TAG = "Nozzarri Tickets FULLFIX v6";
+const BUILD_TAG = "Nozzarri Tickets FULLFIX v7 (claim+modals)";
 
 // ---------------- SAFE INTERACTION HELPERS ----------------
 // Goal: NEVER hit "Interaction failed" and NEVER double-ack interactions.
@@ -37,8 +37,14 @@ async function safeUpdate(interaction, payload) {
         return null;
       }
 
-      // If the interaction was already replied (reply/deferReply), editReply() is valid.
+      // If the interaction was already replied (reply) editReply() is valid.
       if (interaction.replied) {
+        if (interaction.editReply) return await interaction.editReply(cleanPayload);
+      }
+
+      // If we used deferReply() on a component, `deferred` is true but `replied` is false.
+      // In that case, we MUST editReply() or the user will see an infinite loading state.
+      if (interaction.deferred && !interaction.replied) {
         if (interaction.editReply) return await interaction.editReply(cleanPayload);
       }
 
@@ -4256,25 +4262,26 @@ const categoryId = type === "Support" ? cfg.supportCategoryId : cfg.mmCategoryId
   // Claim ticket
   // ✅ FIX: ack immediately (prevents Unknown interaction 10062 / interaction failed)
   if (interaction.isButton() && interaction.customId === "claim_ticket") {
-    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+    // ACK the button click immediately so it never spins forever.
+    // We use deferUpdate() (not deferReply) because we are also editing the ticket message.
+    await interaction.deferUpdate().catch(() => {});
 
     const member = interaction.member;
     const channel = interaction.channel;
     if (!channel || channel.type !== ChannelType.GuildText) {
-      return safeUpdate(interaction, { content: "❌ Invalid channel." }).catch(() => {});
+      await interaction.followUp({ content: "❌ Invalid channel.", ephemeral: true }).catch(() => {});
+      return;
     }
 
     if (!canManageTicket(member, channel)) {
-      return safeUpdate(interaction, {
-        content: "⛔ You do not have permission to claim this ticket."
-      }).catch(() => {});
+      await interaction.followUp({ content: "⛔ You do not have permission to claim this ticket.", ephemeral: true }).catch(() => {});
+      return;
     }
 
     const t = parseTopic(channel.topic);
     if (t.claimed) {
-      return safeUpdate(interaction, {
-        content: "⚠️ This ticket is already claimed."
-      }).catch(() => {});
+      await interaction.followUp({ content: "⚠️ This ticket is already claimed.", ephemeral: true }).catch(() => {});
+      return;
     }
 
     await channel.setTopic(makeTopic(t.opened, member.user.id)).catch(() => {});
@@ -4311,7 +4318,8 @@ const categoryId = type === "Support" ? cfg.supportCategoryId : cfg.mmCategoryId
     await sendLog(channel.guild, logEmbed);
 
     await channel.send(`🎯 Ticket claimed by **${member.user.tag}**`).catch(() => {});
-    return safeUpdate(interaction, { content: "✅ You claimed this ticket." }).catch(() => {});
+    await interaction.followUp({ content: "✅ You claimed this ticket.", ephemeral: true }).catch(() => {});
+    return;
   }
 
   // Close ticket (no reason)
