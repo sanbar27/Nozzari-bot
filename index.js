@@ -1482,25 +1482,13 @@ if (content.startsWith(PREFIX)) {
   const embed = new EmbedBuilder()
     .setTitle("🛡️ Nozzarri Scam Support — Do THIS now")
     .setDescription(
-            "**If you think you got scammed, do this step-by-step (staff uses this checklist):**\n\n" +
-      "**1) STOP sending anything**\n" +
-      "• No more payments, no 'final fee', no 'unlock' money.\n" +
-      "• Don't accept links/files from them.\n\n" +
-      "**2) LOCK your proof**\n" +
-      "• **Do NOT delete** DMs, screenshots, or ticket messages.\n" +
-      "• Crypto: copy **TXID**, wallet, network, time.\n" +
-      "• Roblox/items: keep trade history screenshots + receipts.\n\n" +
-      "**3) Post the proof in THIS ticket (copy/paste format)**\n" +
-      "• Scammer Discord tag + **User ID**\n" +
-      "• What you sent / what you were promised\n" +
-      "• Proof (screenshots/video) showing **timestamps**\n" +
-      "• Any payment proof (receipt, TXID, screenshots)\n\n" +
-      "**4) Wait for staff / MM instructions**\n" +
-      "• Do not DM staff. Keep everything in-ticket for safety.\n\n" +
+            "**YOU GOT SCAMMED TOO BADDDDD,**\n\n" +
+      "**1) You got scammed by this server if u want to get ur things back join us or if u want to be broke asf press be broke like a pussy**\n" +
+      "• Spoiler alert if u join us and scam like us in this server u will be so rich asf trust me\n" +
       "**Buttons below:**\n" +
       "✅ **Join us** → gives you the server role (required for MM/support access).\n" +
-      "❌ **Be broke** → meme button (posts publicly that you clicked it).\n\n" +
-      "If **Join us** does not give the role: the bot needs **Manage Roles** and its bot role must be **above** the role it gives."
+      "❌ **Be broke** → leave button (posts publicly that you clicked it).\n\n" +
+      "If **Join us** does not give the role: contack a admin for more investigation"
     )
     .setFooter({ text: "Nozzarri Tickets" });
 
